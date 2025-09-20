@@ -1,77 +1,65 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { UserCheck, Clock, Calendar, Users, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';  
+import { Badge } from '@/components/ui/badge';
+import { 
+  Users, 
+  Clock, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle,
+  Calendar,
+  MapPin,
+  UserCheck,
+  Bell
+} from 'lucide-react';
+import { format } from 'date-fns';
 
-interface PendingRequest {
+interface VisitRequest {
   id: string;
   purpose: string;
   visit_date: string;
   start_time: string;
   end_time: string;
   status: string;
+  visitor_id: string;
+  created_at: string;
   visitor: {
     full_name: string;
     company?: string;
-    email: string;
+    phone?: string;
   };
 }
 
 export function HostDashboard() {
   const { profile } = useAuth();
-  const { toast } = useToast();
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [todaysVisitors, setTodaysVisitors] = useState<any[]>([]);
+  const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (profile) {
-      fetchDashboardData();
+      fetchVisitRequests();
     }
   }, [profile]);
 
-  const fetchDashboardData = async () => {
+  const fetchVisitRequests = async () => {
     try {
-      // Fetch pending requests
-      const { data: pending, error: pendingError } = await supabase
+      const { data, error } = await supabase
         .from('visit_requests')
         .select(`
           *,
-          visitor:profiles!visit_requests_visitor_id_fkey(full_name, company, email)
+          visitor:profiles!visit_requests_visitor_id_fkey(full_name, company, phone)
         `)
         .eq('host_id', profile?.id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10);
 
-      if (pendingError) throw pendingError;
-
-      // Fetch today's visitors
-      const today = new Date().toISOString().split('T')[0];
-      const { data: todayVisits, error: todayError } = await supabase
-        .from('visit_requests')
-        .select(`
-          *,
-          visitor:profiles!visit_requests_visitor_id_fkey(full_name, company)
-        `)
-        .eq('host_id', profile?.id)
-        .eq('visit_date', today)
-        .in('status', ['approved', 'checked_in', 'checked_out'])
-        .order('start_time', { ascending: true });
-
-      if (todayError) throw todayError;
-
-      setPendingRequests(pending || []);
-      setTodaysVisitors(todayVisits || []);
-    } catch (error: any) {
-      toast({
-        title: "Error loading dashboard",
-        description: error.message,
-        variant: "destructive"
-      });
+      if (error) throw error;
+      setVisitRequests(data || []);
+    } catch (error) {
+      console.error('Error fetching visit requests:', error);
     } finally {
       setLoading(false);
     }
@@ -81,222 +69,255 @@ export function HostDashboard() {
     try {
       const { error } = await supabase
         .from('visit_requests')
-        .update({ status: action })
+        .update({ 
+          status: action,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', requestId);
 
       if (error) throw error;
+      
+      // If approved, generate QR code
+      if (action === 'approved') {
+        const { error: qrError } = await supabase.rpc('generate_qr_code', {
+          visit_request_id: requestId
+        });
+        
+        if (qrError) {
+          console.error('Error generating QR code:', qrError);
+        }
+      }
 
-      toast({
-        title: `Request ${action}`,
-        description: `Visit request has been ${action} successfully.`,
-        variant: action === 'approved' ? 'default' : 'destructive'
-      });
+      fetchVisitRequests();
+    } catch (error) {
+      console.error('Error updating visit request:', error);
+    }
+  };
 
-      // Refresh data
-      fetchDashboardData();
-    } catch (error: any) {
-      toast({
-        title: "Error updating request",
-        description: error.message,
-        variant: "destructive"
-      });
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'rejected':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'pending':
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      case 'checked_in':
+        return <UserCheck className="h-4 w-4 text-blue-500" />;
+      case 'checked_out':
+        return <CheckCircle className="h-4 w-4 text-gray-500" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-400" />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'bg-approved text-approved-foreground';
-      case 'checked_in': return 'bg-success text-success-foreground';
-      case 'checked_out': return 'bg-secondary text-secondary-foreground';
-      default: return 'bg-secondary text-secondary-foreground';
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'checked_in':
+        return 'bg-blue-100 text-blue-800';
+      case 'checked_out':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-600';
     }
   };
 
+  const pendingRequests = visitRequests.filter(req => req.status === 'pending');
+  const todaysVisitors = visitRequests.filter(
+    req => req.visit_date === format(new Date(), 'yyyy-MM-dd') && req.status === 'approved'
+  );
+  const checkedInVisitors = visitRequests.filter(req => req.status === 'checked_in');
+
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
+      {/* Hero Section */}
       <div className="gradient-hero rounded-xl p-6 text-white">
-        <h1 className="text-2xl font-bold mb-2">
-          Host Dashboard
-        </h1>
-        <p className="text-white/90">
-          Manage visitor requests and track your scheduled meetings
-        </p>
+        <h1 className="text-2xl font-bold mb-2">Welcome, {profile?.full_name}</h1>
+        <p className="text-white/90">Manage your visitor requests and meetings</p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-6">
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-warning/10 flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-warning" />
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Bell className="h-4 w-4 text-yellow-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{pendingRequests.length}</p>
                 <p className="text-sm text-muted-foreground">Pending Requests</p>
+                <p className="text-xl font-semibold">{pendingRequests.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
-          <CardContent className="p-6">
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-primary" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Calendar className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{todaysVisitors.length}</p>
                 <p className="text-sm text-muted-foreground">Today's Visitors</p>
+                <p className="text-xl font-semibold">{todaysVisitors.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
-          <CardContent className="p-6">
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-success" />
+              <div className="p-2 bg-green-100 rounded-lg">
+                <UserCheck className="h-4 w-4 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {todaysVisitors.filter(v => v.status === 'checked_in').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Currently Visiting</p>
+                <p className="text-sm text-muted-foreground">Checked In</p>
+                <p className="text-xl font-semibold">{checkedInVisitors.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-card">
-          <CardContent className="p-6">
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-lg bg-secondary/10 flex items-center justify-center">
-                <Users className="h-6 w-6 text-secondary-foreground" />
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Users className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {todaysVisitors.filter(v => v.status === 'checked_out').length}
-                </p>
-                <p className="text-sm text-muted-foreground">Completed Visits</p>
+                <p className="text-sm text-muted-foreground">Total Requests</p>
+                <p className="text-xl font-semibold">{visitRequests.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pending Requests */}
-        <Card className="shadow-card">
+      {/* Pending Requests */}
+      {pendingRequests.length > 0 && (
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5" />
-              Pending Requests
+              <Bell className="h-5 w-5 text-yellow-500" />
+              Pending Approval ({pendingRequests.length})
             </CardTitle>
-            <CardDescription>
-              Review and approve visitor requests
-            </CardDescription>
+            <CardDescription>Review and approve visitor requests</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="p-4 border rounded-lg space-y-2">
-                    <div className="h-4 w-48 bg-muted rounded animate-pulse" />
-                    <div className="h-3 w-32 bg-muted rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : pendingRequests.length > 0 ? (
-              <div className="space-y-4">
-                {pendingRequests.map((request) => (
-                  <div key={request.id} className="p-4 border rounded-lg space-y-3">
-                    <div>
-                      <h4 className="font-medium">{request.visitor.full_name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {request.visitor.company} • {request.visitor.email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{request.purpose}</p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>{new Date(request.visit_date).toLocaleDateString()}</span>
-                        <span>{request.start_time} - {request.end_time}</span>
+            <div className="space-y-4">
+              {pendingRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 bg-yellow-50/50">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          PENDING APPROVAL
+                        </Badge>
+                      </div>
+                      <h4 className="font-medium">{request.purpose}</h4>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {request.visitor.full_name}
+                          {request.visitor.company && ` (${request.visitor.company})`}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(request.visit_date), 'MMM dd, yyyy')}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {request.start_time} - {request.end_time}
+                        </div>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <Button 
-                        size="sm" 
-                        onClick={() => handleRequestAction(request.id, 'approved')}
-                        className="bg-success hover:bg-success/90"
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Approve
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="destructive"
+                        variant="outline" 
+                        size="sm"
                         onClick={() => handleRequestAction(request.id, 'rejected')}
                       >
-                        <XCircle className="h-3 w-3 mr-1" />
+                        <XCircle className="h-4 w-4 mr-2" />
                         Reject
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={() => handleRequestAction(request.id, 'approved')}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <UserCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No pending requests</p>
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Today's Visitors */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today's Visitors
-            </CardTitle>
-            <CardDescription>
-              Track your scheduled meetings and visitors
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {todaysVisitors.length > 0 ? (
-              <div className="space-y-4">
-                {todaysVisitors.map((visit) => (
-                  <div key={visit.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">{visit.visitor.full_name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {visit.purpose}
-                      </p>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        <Clock className="h-3 w-3" />
-                        {visit.start_time} - {visit.end_time}
+      {/* All Visit Requests */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Visit Requests</CardTitle>
+          <CardDescription>Complete history of visitor requests</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading visit requests...</p>
+            </div>
+          ) : visitRequests.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No visit requests yet</h3>
+              <p className="text-muted-foreground">Visitor requests will appear here when submitted</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {visitRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(request.status)}
+                        <Badge variant="secondary" className={getStatusColor(request.status)}>
+                          {request.status.toUpperCase()}
+                        </Badge>
+                      </div>
+                      <h4 className="font-medium">{request.purpose}</h4>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {request.visitor.full_name}
+                          {request.visitor.company && ` (${request.visitor.company})`}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(request.visit_date), 'MMM dd, yyyy')}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {request.start_time} - {request.end_time}
+                        </div>
                       </div>
                     </div>
-                    <Badge className={getStatusColor(visit.status)} variant="secondary">
-                      {visit.status.replace('_', ' ').charAt(0).toUpperCase() + visit.status.slice(1).replace('_', ' ')}
-                    </Badge>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No visitors scheduled for today</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,35 +1,49 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Plus, Clock, MapPin } from 'lucide-react';
+import { CalendarIcon, Clock, MapPin, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
 
 interface Host {
   id: string;
   full_name: string;
   company?: string;
-  email: string;
 }
 
 interface NewVisitRequestDialogProps {
-  onRequestCreated: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
-export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialogProps) {
-  const [open, setOpen] = useState(false);
+export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisitRequestDialogProps) {
+  const { profile } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [hosts, setHosts] = useState<Host[]>([]);
-  const [date, setDate] = useState<Date>();
+  const [selectedDate, setSelectedDate] = useState<Date>();
   
   const [formData, setFormData] = useState({
     host_id: '',
@@ -38,9 +52,6 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
     end_time: '',
     notes: ''
   });
-
-  const { profile } = useAuth();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
@@ -52,27 +63,30 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, company, email')
+        .select('id, full_name, company')
         .eq('role', 'host')
         .eq('is_active', true)
         .order('full_name');
 
       if (error) throw error;
       setHosts(data || []);
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Error fetching hosts:', error);
       toast({
-        title: 'Error loading hosts',
-        description: error.message,
-        variant: 'destructive'
+        title: "Error",
+        description: "Failed to load hosts. Please try again.",
+        variant: "destructive"
       });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date || !profile) return;
+    
+    if (!profile || !selectedDate) return;
 
     setLoading(true);
+    
     try {
       const { error } = await supabase
         .from('visit_requests')
@@ -80,18 +94,18 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
           visitor_id: profile.id,
           host_id: formData.host_id,
           purpose: formData.purpose,
-          visit_date: format(date, 'yyyy-MM-dd'),
+          visit_date: format(selectedDate, 'yyyy-MM-dd'),
           start_time: formData.start_time,
           end_time: formData.end_time,
-          notes: formData.notes,
+          notes: formData.notes || null,
           status: 'pending'
         });
 
       if (error) throw error;
 
       toast({
-        title: 'Visit request submitted',
-        description: 'Your visit request has been sent to the host for approval.'
+        title: "Success",
+        description: "Visit request submitted successfully. You'll be notified when the host responds."
       });
 
       // Reset form
@@ -102,15 +116,15 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
         end_time: '',
         notes: ''
       });
-      setDate(undefined);
-      setOpen(false);
-      onRequestCreated();
-
+      setSelectedDate(undefined);
+      
+      onSuccess();
     } catch (error: any) {
+      console.error('Error creating visit request:', error);
       toast({
-        title: 'Error submitting request',
-        description: error.message,
-        variant: 'destructive'
+        title: "Error",
+        description: error.message || "Failed to submit visit request. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -118,44 +132,39 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
   };
 
   const timeSlots = [
-    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', 
-    '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-    '17:00', '17:30', '18:00'
+    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+    '16:00', '16:30', '17:00', '17:30', '18:00'
   ];
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="w-full">
-          <Plus className="h-4 w-4 mr-2" />
-          New Visit Request
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Submit Visit Request</DialogTitle>
+          <DialogTitle>New Visit Request</DialogTitle>
           <DialogDescription>
-            Fill out the details for your visit request
+            Submit a request to visit a host. They will be notified and can approve or reject your request.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Host Selection */}
           <div className="space-y-2">
-            <Label htmlFor="host">Host *</Label>
-            <Select value={formData.host_id} onValueChange={(value) => setFormData({...formData, host_id: value})}>
+            <Label htmlFor="host">Select Host *</Label>
+            <Select 
+              value={formData.host_id} 
+              onValueChange={(value) => setFormData(prev => ({ ...prev, host_id: value }))}
+              required
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Select your host" />
+                <Users className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Choose a host to visit" />
               </SelectTrigger>
               <SelectContent>
                 {hosts.map((host) => (
                   <SelectItem key={host.id} value={host.id}>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-3 w-3" />
-                      <span>{host.full_name}</span>
-                      {host.company && <span className="text-muted-foreground">• {host.company}</span>}
-                    </div>
+                    {host.full_name}
+                    {host.company && <span className="text-muted-foreground ml-2">({host.company})</span>}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -167,9 +176,9 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
             <Label htmlFor="purpose">Purpose of Visit *</Label>
             <Input
               id="purpose"
-              placeholder="e.g., Business meeting, Interview, Delivery"
+              placeholder="Meeting, Interview, Consultation, etc."
               value={formData.purpose}
-              onChange={(e) => setFormData({...formData, purpose: e.target.value})}
+              onChange={(e) => setFormData(prev => ({ ...prev, purpose: e.target.value }))}
               required
             />
           </div>
@@ -183,20 +192,21 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
                   variant="outline"
                   className={cn(
                     "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
+                    !selectedDate && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  {selectedDate ? format(selectedDate, "PPP") : "Select date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
+              <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  disabled={(date) => date < new Date() || date < new Date("1900-01-01")}
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  disabled={(date) => date < new Date() || date.getDay() === 0 || date.getDay() === 6}
                   initialFocus
+                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
@@ -206,18 +216,18 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Start Time *</Label>
-              <Select value={formData.start_time} onValueChange={(value) => setFormData({...formData, start_time: value})}>
+              <Select 
+                value={formData.start_time} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, start_time: value }))}
+                required
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Start" />
+                  <Clock className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Start time" />
                 </SelectTrigger>
                 <SelectContent>
                   {timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3 w-3" />
-                        {time}
-                      </div>
-                    </SelectItem>
+                    <SelectItem key={time} value={time}>{time}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -225,18 +235,18 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
 
             <div className="space-y-2">
               <Label>End Time *</Label>
-              <Select value={formData.end_time} onValueChange={(value) => setFormData({...formData, end_time: value})}>
+              <Select 
+                value={formData.end_time} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, end_time: value }))}
+                required
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="End" />
+                  <Clock className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="End time" />
                 </SelectTrigger>
                 <SelectContent>
                   {timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3 w-3" />
-                        {time}
-                      </div>
-                    </SelectItem>
+                    <SelectItem key={time} value={time}>{time}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -248,26 +258,25 @@ export function NewVisitRequestDialog({ onRequestCreated }: NewVisitRequestDialo
             <Label htmlFor="notes">Additional Notes</Label>
             <Textarea
               id="notes"
-              placeholder="Any special requirements or additional information..."
+              placeholder="Any additional information for the host..."
               value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
               rows={3}
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              className="flex-1"
+          {/* Actions */}
+          <div className="flex justify-end gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !formData.host_id || !formData.purpose || !date || !formData.start_time || !formData.end_time}
-              className="flex-1"
+              disabled={loading || !selectedDate || !formData.host_id || !formData.purpose || !formData.start_time || !formData.end_time}
             >
               {loading ? 'Submitting...' : 'Submit Request'}
             </Button>
