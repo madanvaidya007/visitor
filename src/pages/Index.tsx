@@ -1,6 +1,9 @@
 import { useAuth } from '@/hooks/useAuth';
 import { VisitorDashboard } from '@/components/dashboard/VisitorDashboard';
 import { HostDashboard } from '@/components/dashboard/HostDashboard';
+import { ReceptionDashboard } from '@/components/dashboard/ReceptionDashboard';
+import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
+import { SecurityDashboard } from '@/components/dashboard/SecurityDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Shield, Users, Building, Key, Eye } from 'lucide-react';
 
@@ -48,67 +51,13 @@ const Index = () => {
       return <HostDashboard />;
     
     case 'reception':
-      return (
-        <div className="space-y-6">
-          <div className="gradient-hero rounded-xl p-6 text-white">
-            <h1 className="text-2xl font-bold mb-2">Reception Dashboard</h1>
-            <p className="text-white/90">Manage visitor registration and check-ins</p>
-          </div>
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center">
-                <Key className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Reception Panel</h3>
-                <p className="text-muted-foreground">
-                  Reception dashboard features are being developed
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      );
+      return <ReceptionDashboard />;
     
     case 'admin':
-      return (
-        <div className="space-y-6">
-          <div className="gradient-hero rounded-xl p-6 text-white">
-            <h1 className="text-2xl font-bold mb-2">Admin Dashboard</h1>
-            <p className="text-white/90">Manage system settings and user permissions</p>
-          </div>
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center">
-                <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Admin Panel</h3>
-                <p className="text-muted-foreground">
-                  Admin dashboard features are being developed
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      );
+      return <AdminDashboard />;
     
     case 'security':
-      return (
-        <div className="space-y-6">
-          <div className="gradient-hero rounded-xl p-6 text-white">
-            <h1 className="text-2xl font-bold mb-2">Security Dashboard</h1>
-            <p className="text-white/90">Monitor access points and visitor tracking</p>
-          </div>
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center">
-                <Eye className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Security Panel</h3>
-                <p className="text-muted-foreground">
-                  Security dashboard features are being developed
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      );
+      return <SecurityDashboard />;
     
     default:
       return (
