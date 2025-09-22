@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { NewVisitRequestDialog } from '@/components/visitor/NewVisitRequestDialog';
+import { QRCodeDialog } from '@/components/visitor/QRCodeDialog';
+import { CheckInOutDialog } from '@/components/visitor/CheckInOutDialog';
 
 interface VisitRequest {
   id: string;
@@ -39,6 +41,8 @@ export function VisitorDashboard() {
   const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewRequest, setShowNewRequest] = useState(false);
+  const [showQRDialog, setShowQRDialog] = useState(false);
+  const [showCheckInOut, setShowCheckInOut] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -117,6 +121,21 @@ export function VisitorDashboard() {
         <p className="text-white/90">Manage your visits and access requests</p>
       </div>
 
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Button onClick={() => setShowQRDialog(true)} className="w-full">
+          <QrCode className="h-4 w-4 mr-2" />
+          My Digital Pass
+        </Button>
+        <Button onClick={() => setShowCheckInOut(true)} variant="outline" className="w-full">
+          <CheckCircle className="h-4 w-4 mr-2" />
+          Check In/Out
+        </Button>
+        <Button onClick={() => setShowNewRequest(true)} variant="outline" className="w-full">
+          <Plus className="h-4 w-4 mr-2" />
+          New Visit Request
+        </Button>
+      </div>
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -244,7 +263,7 @@ export function VisitorDashboard() {
                     </div>
                     <div className="flex gap-2">
                       {request.status === 'approved' && request.qr_code && (
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => setShowQRDialog(true)}>
                           <QrCode className="h-4 w-4 mr-2" />
                           View Pass
                         </Button>
@@ -266,6 +285,18 @@ export function VisitorDashboard() {
           setShowNewRequest(false);
           fetchVisitRequests();
         }}
+      />
+
+      {/* QR Code Dialog */}
+      <QRCodeDialog
+        open={showQRDialog}
+        onOpenChange={setShowQRDialog}
+      />
+
+      {/* Check In/Out Dialog */}
+      <CheckInOutDialog
+        open={showCheckInOut}
+        onOpenChange={setShowCheckInOut}
       />
     </div>
   );

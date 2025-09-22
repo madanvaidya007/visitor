@@ -164,6 +164,7 @@ export function VisitorTrackingTab() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
+              aria-label="Search visitors by name, company, or host"
             />
           </div>
 

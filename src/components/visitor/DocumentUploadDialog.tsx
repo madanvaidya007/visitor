@@ -16,8 +16,17 @@ interface DocumentFile {
   uploading?: boolean;
 }
 
-export function DocumentUploadDialog() {
-  const [open, setOpen] = useState(false);
+interface DocumentUploadDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onUploadComplete?: () => void;
+}
+
+export function DocumentUploadDialog({ 
+  open = false, 
+  onOpenChange, 
+  onUploadComplete 
+}: DocumentUploadDialogProps = {}) {
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,21 +67,48 @@ export function DocumentUploadDialog() {
       const fileExt = document.file.name.split('.').pop();
       const fileName = `${profile.id}/${document.type}/${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('documents')
         .upload(fileName, document.file, {
           cacheControl: '3600',
           upsert: false
         });
 
-      if (error) throw error;
+      if (uploadError) throw uploadError;
 
+      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('documents')
         .getPublicUrl(fileName);
 
-      // Update profile with document URL
-      const updateField = document.type === 'id_proof' ? 'id_proof_url' : null;
+      // Insert document record into database
+      const { data: documentRecord, error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: profile.id,
+          name: document.file.name,
+          type: document.type,
+          category: document.type === 'id_proof' || document.type === 'photo' ? 'required' : 'optional',
+          status: 'pending',
+          file_url: publicUrl,
+          file_path: fileName,
+          file_size: document.file.size,
+          mime_type: document.file.type,
+          metadata: {
+            original_name: document.file.name,
+            upload_timestamp: new Date().toISOString()
+          }
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // Update profile with document URL for specific types
+      const updateField = document.type === 'id_proof' ? 'id_proof_url' : 
+                         document.type === 'photo' ? 'photo_url' : null;
+      
       if (updateField) {
         const { error: updateError } = await supabase
           .from('profiles')
@@ -91,6 +127,14 @@ export function DocumentUploadDialog() {
         title: 'Document uploaded',
         description: `${document.type.replace('_', ' ')} uploaded successfully.`
       });
+
+      // Trigger refresh of parent component if callback provided
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+
+      // Close dialog after successful upload
+      handleOpenChange(false);
 
     } catch (error: any) {
       setDocuments(prev => prev.map((doc, i) => 
@@ -125,8 +169,14 @@ export function DocumentUploadDialog() {
     }
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(newOpen);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" className="w-full">
           <FileText className="h-4 w-4 mr-2" />
@@ -151,15 +201,18 @@ export function DocumentUploadDialog() {
               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               onChange={handleFileSelect}
               className="hidden"
+              aria-label="Upload documents for visit requests"
+              aria-describedby="file-upload-description"
             />
             <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground mb-2">
+            <p id="file-upload-description" className="text-sm text-muted-foreground mb-2">
               Click to upload or drag and drop files
             </p>
             <Button 
               type="button" 
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
+              aria-describedby="file-upload-description"
             >
               Choose Files
             </Button>
@@ -188,6 +241,7 @@ export function DocumentUploadDialog() {
                     onChange={(e) => setDocumentType(index, e.target.value as DocumentFile['type'])}
                     className="text-xs border rounded px-2 py-1"
                     disabled={doc.uploaded || doc.uploading}
+                    aria-label={`Document type for ${doc.file.name}`}
                   >
                     <option value="other">Other</option>
                     <option value="id_proof">ID Proof</option>
@@ -204,6 +258,7 @@ export function DocumentUploadDialog() {
                       size="sm"
                       variant="ghost"
                       onClick={() => removeDocument(index)}
+                      aria-label={`Remove ${doc.file.name} from upload list`}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -228,7 +283,7 @@ export function DocumentUploadDialog() {
           <div className="flex gap-3 pt-4">
             <Button
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => handleOpenChange(false)}
               className="flex-1"
             >
               Close

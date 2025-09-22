@@ -24,12 +24,21 @@ interface VisitRequest {
   };
 }
 
-export function QRCodeDialog() {
-  const [open, setOpen] = useState(false);
+interface QRCodeDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogProps = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [approvedVisits, setApprovedVisits] = useState<VisitRequest[]>([]);
   const [selectedVisit, setSelectedVisit] = useState<VisitRequest | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
+
+  // Use external open state if provided, otherwise use internal state
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
 
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -84,20 +93,19 @@ export function QRCodeDialog() {
     setLoading(true);
     try {
       // Generate QR code if it doesn't exist
-      let qrCodeData = selectedVisit.qr_code;
+    let qrCodeData = selectedVisit.qr_code;
+    
+    if (!qrCodeData) {
+      // Generate QR code and update database
+      qrCodeData = await createQRCode(selectedVisit.id);
       
-      if (!qrCodeData) {
-        // Update QR code in database if not exists
-        if (!qrCodeData) {
-          qrCodeData = await createQRCode(selectedVisit.id);
-          
-          if (qrCodeData) {
-            setSelectedVisit(prev => prev ? { ...prev, qr_code: qrCodeData } : null);
-          }
-        }
+      if (qrCodeData) {
+        setSelectedVisit(prev => prev ? { ...prev, qr_code: qrCodeData } : null);
       }
+    }
 
       // Generate QR code image
+    if (qrCodeData) {
       const qrImageUrl = await QRCodeLib.toDataURL(qrCodeData, {
         width: 300,
         margin: 2,
@@ -108,6 +116,14 @@ export function QRCodeDialog() {
       });
 
       setQrCodeUrl(qrImageUrl);
+    } else {
+      setQrCodeUrl('');
+      toast({
+        title: 'Error generating QR code',
+        description: 'Failed to generate QR code data',
+        variant: 'destructive'
+      });
+    }
     } catch (error: any) {
       toast({
         title: 'Error generating QR code',
@@ -189,12 +205,6 @@ export function QRCodeDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
-          <QrCode className="h-4 w-4 mr-2" />
-          My Digital Pass
-        </Button>
-      </DialogTrigger>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Digital Visit Pass</DialogTitle>
@@ -217,14 +227,16 @@ export function QRCodeDialog() {
               {/* Visit Selection */}
               {approvedVisits.length > 1 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Select Visit</label>
+                  <label htmlFor="visit-select" className="text-sm font-medium">Select Visit</label>
                   <select
+                    id="visit-select"
                     value={selectedVisit?.id || ''}
                     onChange={(e) => {
                       const visit = approvedVisits.find(v => v.id === e.target.value);
                       setSelectedVisit(visit || null);
                     }}
                     className="w-full border rounded-md px-3 py-2 text-sm"
+                    aria-label="Select a visit to generate QR code"
                   >
                     {approvedVisits.map((visit) => (
                       <option key={visit.id} value={visit.id}>
@@ -280,7 +292,7 @@ export function QRCodeDialog() {
                       <div className="text-center">
                         <img 
                           src={qrCodeUrl} 
-                          alt="Visit QR Code" 
+                          alt={`QR code for ${selectedVisit.purpose} visit on ${selectedVisit.visit_date}`}
                           className="mx-auto mb-4 rounded-lg"
                         />
                         <p className="text-xs text-muted-foreground">
@@ -301,6 +313,7 @@ export function QRCodeDialog() {
                         variant="outline"
                         onClick={downloadQRCode}
                         className="flex-1"
+                        aria-label={`Download QR code for ${selectedVisit.purpose} visit`}
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Download
@@ -309,6 +322,7 @@ export function QRCodeDialog() {
                         variant="outline"
                         onClick={shareQRCode}
                         className="flex-1"
+                        aria-label={`Share QR code for ${selectedVisit.purpose} visit`}
                       >
                         <Share className="h-4 w-4 mr-2" />
                         Share

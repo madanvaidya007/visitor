@@ -66,6 +66,17 @@ export function SecurityDashboard() {
         { event: '*', schema: 'public', table: 'visit_logs' },
         () => {
           fetchSecurityStats();
+        }
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'zone_occupancy' },
+        () => {
+          fetchZoneOccupancy();
+        }
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'zone_alerts' },
+        () => {
           fetchRecentAlerts();
         }
       )
@@ -104,63 +115,82 @@ export function SecurityDashboard() {
 
   const fetchZoneOccupancy = async () => {
     try {
-      const { data: zones, error } = await supabase
-        .from('zones')
-        .select('*')
-        .eq('is_active', true);
+      // Fetch real zone occupancy data from the database
+      const { data: occupancyData, error } = await supabase
+        .from('zone_occupancy')
+        .select(`
+          current_count,
+          max_capacity,
+          zone:zones!zone_occupancy_zone_id_fkey(
+            name,
+            zone_type
+          )
+        `)
+        .order('current_count', { ascending: false });
 
       if (error) throw error;
 
-      // For now, we'll simulate occupancy data
-      // In a real system, this would track actual visitor locations
-      const occupancyData = zones.map(zone => ({
-        zone_name: zone.name,
-        current_count: Math.floor(Math.random() * (zone.max_capacity || 10)),
-        max_capacity: zone.max_capacity || 10,
-        zone_type: zone.zone_type
+      // Transform the data to match the expected format
+      const formattedOccupancy = (occupancyData || []).map(item => ({
+        zone_name: item.zone?.name || 'Unknown Zone',
+        current_count: item.current_count || 0,
+        max_capacity: item.max_capacity || 0,
+        zone_type: item.zone?.zone_type || 'general'
       }));
 
-      setZoneOccupancy(occupancyData);
+      setZoneOccupancy(formattedOccupancy);
       
       // Update zones occupied count
-      const occupiedZones = occupancyData.filter(z => z.current_count > 0).length;
+      const occupiedZones = formattedOccupancy.filter(z => z.current_count > 0).length;
       setSecurityStats(prev => ({ ...prev, zones_occupied: occupiedZones }));
     } catch (error: any) {
       console.error('Error fetching zone occupancy:', error);
+      // Fallback to empty data on error
+      setZoneOccupancy([]);
     }
   };
 
   const fetchRecentAlerts = async () => {
     try {
-      // Get recent unauthorized access attempts or overstays
-      const { data, error } = await supabase
-        .from('visit_logs')
+      // Fetch real security alerts from the zone_alerts table
+      const { data: alertsData, error } = await supabase
+        .from('zone_alerts')
         .select(`
           id,
-          action,
-          timestamp,
-          notes,
-          visit_request:visit_request_id(
-            purpose,
-            visitor:visitor_id(full_name),
-            host:host_id(full_name)
+          alert_type,
+          severity,
+          title,
+          message,
+          is_active,
+          created_at,
+          metadata,
+          zone:zones!zone_alerts_zone_id_fkey(
+            name,
+            zone_type
           )
         `)
-        .order('timestamp', { ascending: false })
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
         .limit(5);
 
       if (error) throw error;
-      setRecentAlerts(data || []);
+      
+      setRecentAlerts(alertsData || []);
+      
+      // Update security alerts count
+      const activeAlertsCount = (alertsData || []).length;
+      setSecurityStats(prev => ({ ...prev, security_alerts: activeAlertsCount }));
     } catch (error: any) {
       console.error('Error fetching recent alerts:', error);
+      setRecentAlerts([]);
     }
   };
 
-  const getZoneStatusColor = (current: number, max: number) => {
+  const getZoneStatusColor = (current: number, max: number): 'default' | 'destructive' | 'secondary' => {
     const percentage = (current / max) * 100;
     if (percentage >= 90) return 'destructive';
-    if (percentage >= 70) return 'warning';
-    return 'success';
+    if (percentage >= 70) return 'secondary';
+    return 'default';
   };
 
   return (
@@ -246,7 +276,7 @@ export function SecurityDashboard() {
                   <span className="text-sm text-muted-foreground">
                     {zone.current_count} / {zone.max_capacity}
                   </span>
-                      <Badge variant={getZoneStatusColor(zone.current_count, zone.max_capacity) === 'success' ? 'default' : getZoneStatusColor(zone.current_count, zone.max_capacity)}>
+                      <Badge variant={getZoneStatusColor(zone.current_count, zone.max_capacity)}>
                         {Math.round((zone.current_count / zone.max_capacity) * 100)}%
                       </Badge>
                 </div>
@@ -255,9 +285,9 @@ export function SecurityDashboard() {
                     className={`h-2 rounded-full transition-all duration-300 ${
                       getZoneStatusColor(zone.current_count, zone.max_capacity) === 'destructive' 
                         ? 'bg-destructive' 
-                        : getZoneStatusColor(zone.current_count, zone.max_capacity) === 'warning'
-                        ? 'bg-warning'
-                        : 'bg-success'
+                        : getZoneStatusColor(zone.current_count, zone.max_capacity) === 'secondary'
+                        ? 'bg-orange-500'
+                        : 'bg-green-500'
                     }`}
                     style={{ width: `${(zone.current_count / zone.max_capacity) * 100}%` }}
                   />

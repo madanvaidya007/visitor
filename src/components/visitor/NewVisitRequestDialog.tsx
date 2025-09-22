@@ -22,9 +22,10 @@ import {
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Clock, MapPin, Users } from 'lucide-react';
-import { format } from 'date-fns';
+import { CalendarIcon, Clock, MapPin, Users, AlertCircle, Loader2 } from 'lucide-react';
+import { format, addDays, isBefore, isAfter } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Host {
   id: string;
@@ -44,6 +45,8 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
   const [loading, setLoading] = useState(false);
   const [hosts, setHosts] = useState<Host[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     host_id: '',
@@ -56,6 +59,17 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
   useEffect(() => {
     if (open) {
       fetchHosts();
+      // Reset form when dialog opens
+      setFormData({
+        host_id: '',
+        purpose: '',
+        start_time: '',
+        end_time: '',
+        notes: ''
+      });
+      setSelectedDate(undefined);
+      setErrors({});
+      setIsSubmitting(false);
     }
   }, [open]);
 
@@ -80,12 +94,67 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
     }
   };
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.host_id) {
+      newErrors.host_id = 'Please select a host';
+    }
+
+    if (!formData.purpose.trim()) {
+      newErrors.purpose = 'Purpose is required';
+    } else if (formData.purpose.trim().length < 3) {
+      newErrors.purpose = 'Purpose must be at least 3 characters';
+    }
+
+    if (!selectedDate) {
+      newErrors.date = 'Please select a visit date';
+    } else if (isBefore(selectedDate, new Date())) {
+      newErrors.date = 'Visit date cannot be in the past';
+    } else if (isAfter(selectedDate, addDays(new Date(), 90))) {
+      newErrors.date = 'Visit date cannot be more than 90 days in advance';
+    }
+
+    if (!formData.start_time) {
+      newErrors.start_time = 'Start time is required';
+    }
+
+    if (!formData.end_time) {
+      newErrors.end_time = 'End time is required';
+    }
+
+    if (formData.start_time && formData.end_time) {
+      const startHour = parseInt(formData.start_time.split(':')[0]);
+      const startMinute = parseInt(formData.start_time.split(':')[1]);
+      const endHour = parseInt(formData.end_time.split(':')[0]);
+      const endMinute = parseInt(formData.end_time.split(':')[1]);
+      
+      const startTime = startHour * 60 + startMinute;
+      const endTime = endHour * 60 + endMinute;
+      
+      if (endTime <= startTime) {
+        newErrors.end_time = 'End time must be after start time';
+      }
+      
+      if (endTime - startTime < 30) {
+        newErrors.end_time = 'Visit must be at least 30 minutes long';
+      }
+      
+      if (endTime - startTime > 480) { // 8 hours
+        newErrors.end_time = 'Visit cannot exceed 8 hours';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!profile || !selectedDate) return;
+    if (!profile || !validateForm()) return;
 
-    setLoading(true);
+    setIsSubmitting(true);
     
     try {
       const { error } = await supabase
@@ -108,16 +177,6 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
         description: "Visit request submitted successfully. You'll be notified when the host responds."
       });
 
-      // Reset form
-      setFormData({
-        host_id: '',
-        purpose: '',
-        start_time: '',
-        end_time: '',
-        notes: ''
-      });
-      setSelectedDate(undefined);
-      
       onSuccess();
     } catch (error: any) {
       console.error('Error creating visit request:', error);
@@ -127,7 +186,7 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -148,27 +207,59 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Error Alert */}
+          {Object.keys(errors).length > 0 && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Please fix the following errors:
+                <ul className="mt-2 list-disc list-inside">
+                  {Object.values(errors).map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Host Selection */}
           <div className="space-y-2">
             <Label htmlFor="host">Select Host *</Label>
             <Select 
               value={formData.host_id} 
-              onValueChange={(value) => setFormData(prev => ({ ...prev, host_id: value }))}
+              onValueChange={(value) => {
+                setFormData(prev => ({ ...prev, host_id: value }));
+                if (errors.host_id) {
+                  setErrors(prev => ({ ...prev, host_id: '' }));
+                }
+              }}
               required
             >
-              <SelectTrigger>
+              <SelectTrigger className={errors.host_id ? 'border-red-500' : ''}>
                 <Users className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Choose a host to visit" />
               </SelectTrigger>
               <SelectContent>
-                {hosts.map((host) => (
-                  <SelectItem key={host.id} value={host.id}>
-                    {host.full_name}
-                    {host.company && <span className="text-muted-foreground ml-2">({host.company})</span>}
+                {loading ? (
+                  <SelectItem value="loading" disabled>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Loading hosts...
                   </SelectItem>
-                ))}
+                ) : hosts.length === 0 ? (
+                  <SelectItem value="no-hosts" disabled>
+                    No hosts available
+                  </SelectItem>
+                ) : (
+                  hosts.map((host) => (
+                    <SelectItem key={host.id} value={host.id}>
+                      {host.full_name}
+                      {host.company && <span className="text-muted-foreground ml-2">({host.company})</span>}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
+            {errors.host_id && <p className="text-sm text-red-500">{errors.host_id}</p>}
           </div>
 
           {/* Purpose */}
@@ -178,9 +269,16 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
               id="purpose"
               placeholder="Meeting, Interview, Consultation, etc."
               value={formData.purpose}
-              onChange={(e) => setFormData(prev => ({ ...prev, purpose: e.target.value }))}
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, purpose: e.target.value }));
+                if (errors.purpose) {
+                  setErrors(prev => ({ ...prev, purpose: '' }));
+                }
+              }}
+              className={errors.purpose ? 'border-red-500' : ''}
               required
             />
+            {errors.purpose && <p className="text-sm text-red-500">{errors.purpose}</p>}
           </div>
 
           {/* Date Selection */}
@@ -192,7 +290,8 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
                   variant="outline"
                   className={cn(
                     "w-full justify-start text-left font-normal",
-                    !selectedDate && "text-muted-foreground"
+                    !selectedDate && "text-muted-foreground",
+                    errors.date && "border-red-500"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
@@ -203,13 +302,24 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
                 <Calendar
                   mode="single"
                   selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabled={(date) => date < new Date() || date.getDay() === 0 || date.getDay() === 6}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    if (errors.date) {
+                      setErrors(prev => ({ ...prev, date: '' }));
+                    }
+                  }}
+                  disabled={(date) => 
+                    isBefore(date, new Date()) || 
+                    date.getDay() === 0 || 
+                    date.getDay() === 6 ||
+                    isAfter(date, addDays(new Date(), 90))
+                  }
                   initialFocus
                   className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
+            {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
           </div>
 
           {/* Time Selection */}
@@ -218,10 +328,15 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
               <Label>Start Time *</Label>
               <Select 
                 value={formData.start_time} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, start_time: value }))}
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, start_time: value }));
+                  if (errors.start_time) {
+                    setErrors(prev => ({ ...prev, start_time: '' }));
+                  }
+                }}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger className={errors.start_time ? 'border-red-500' : ''}>
                   <Clock className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Start time" />
                 </SelectTrigger>
@@ -231,16 +346,22 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
                   ))}
                 </SelectContent>
               </Select>
+              {errors.start_time && <p className="text-sm text-red-500">{errors.start_time}</p>}
             </div>
 
             <div className="space-y-2">
               <Label>End Time *</Label>
               <Select 
                 value={formData.end_time} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, end_time: value }))}
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, end_time: value }));
+                  if (errors.end_time) {
+                    setErrors(prev => ({ ...prev, end_time: '' }));
+                  }
+                }}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger className={errors.end_time ? 'border-red-500' : ''}>
                   <Clock className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="End time" />
                 </SelectTrigger>
@@ -250,6 +371,7 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
                   ))}
                 </SelectContent>
               </Select>
+              {errors.end_time && <p className="text-sm text-red-500">{errors.end_time}</p>}
             </div>
           </div>
 
@@ -271,14 +393,22 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
               type="button" 
               variant="outline" 
               onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !selectedDate || !formData.host_id || !formData.purpose || !formData.start_time || !formData.end_time}
+              disabled={isSubmitting}
             >
-              {loading ? 'Submitting...' : 'Submit Request'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Request'
+              )}
             </Button>
           </div>
         </form>

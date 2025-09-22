@@ -8,6 +8,14 @@ import Index from "./pages/Index";
 import AuthPage from "./components/auth/AuthPage";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/visitor/Profile";
+import VisitRequests from "./pages/visitor/VisitRequests";
+import MyVisits from "./pages/visitor/MyVisits";
+import Documents from "./pages/visitor/Documents";
+import VisitorRequests from "./pages/host/VisitorRequests";
+import MyVisitors from "./pages/host/MyVisitors";
+import InviteVisitor from "./pages/host/InviteVisitor";
+import ZoneAccess from "./pages/host/ZoneAccess";
+import ScanQRCode from "./pages/security/ScanQRCode";
 
 const queryClient = new QueryClient();
 
@@ -33,39 +41,39 @@ const App = () => (
           } />
           <Route path="/visit-requests" element={
             <DashboardLayout>
-              <div>Visit Requests Page - Coming Soon</div>
+              <VisitRequests />
             </DashboardLayout>
           } />
           <Route path="/my-visits" element={
             <DashboardLayout>
-              <div>My Visits Page - Coming Soon</div>
+              <MyVisits />
             </DashboardLayout>
           } />
           <Route path="/documents" element={
             <DashboardLayout>
-              <div>Documents Page - Coming Soon</div>
+              <Documents />
             </DashboardLayout>
           } />
           
           {/* Host Routes */}
           <Route path="/visitor-requests" element={
             <DashboardLayout>
-              <div>Visitor Requests Page - Coming Soon</div>
+              <VisitorRequests />
             </DashboardLayout>
           } />
           <Route path="/my-visitors" element={
             <DashboardLayout>
-              <div>My Visitors Page - Coming Soon</div>
+              <MyVisitors />
             </DashboardLayout>
           } />
           <Route path="/invite-visitor" element={
             <DashboardLayout>
-              <div>Invite Visitor Page - Coming Soon</div>
+              <InviteVisitor />
             </DashboardLayout>
           } />
           <Route path="/zones" element={
             <DashboardLayout>
-              <div>Zone Access Page - Coming Soon</div>
+              <ZoneAccess />
             </DashboardLayout>
           } />
           
@@ -121,7 +129,7 @@ const App = () => (
           {/* Security Routes */}
           <Route path="/scan-qr" element={
             <DashboardLayout>
-              <div>Scan QR Code Page - Coming Soon</div>
+              <ScanQRCode />
             </DashboardLayout>
           } />
           <Route path="/zone-monitoring" element={

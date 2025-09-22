@@ -74,6 +74,7 @@ export function QRScannerTab({ onScanSuccess }: QRScannerTabProps) {
                 <Button 
                   variant="outline"
                   onClick={simulateQRScan}
+                  aria-label="Simulate QR code scan"
                 >
                   <QrCode className="h-4 w-4" />
                 </Button>

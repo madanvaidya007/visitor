@@ -31,6 +31,15 @@ export function useAuth() {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session);
+        
+        // Handle auth errors
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.warn('Token refresh failed, signing out user');
+          await signOut();
+          return;
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -63,7 +72,15 @@ export function useAuth() {
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        // Clear any invalid session data
+        localStorage.removeItem('supabase.auth.token');
+        setLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       if (!session) {

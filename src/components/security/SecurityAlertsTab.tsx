@@ -8,79 +8,39 @@ interface SecurityAlertsTabProps {
 }
 
 export function SecurityAlertsTab({ alerts }: SecurityAlertsTabProps) {
-  const mockAlerts = [
-    {
-      id: 1,
-      type: 'unauthorized_access',
-      title: 'Unauthorized Access Attempt',
-      description: 'Invalid QR code scanned at Server Room entrance',
-      severity: 'high',
-      timestamp: new Date(Date.now() - 300000),
-      status: 'active',
-      zone: 'Server Room'
-    },
-    {
-      id: 2,
-      type: 'overstay',
-      title: 'Visitor Overstay Alert',
-      description: 'John Doe has exceeded maximum visit duration',
-      severity: 'medium',
-      timestamp: new Date(Date.now() - 600000),
-      status: 'active',
-      zone: 'Lab A'
-    },
-    {
-      id: 3,
-      type: 'tailgating',
-      title: 'Potential Tailgating Detected',
-      description: 'Multiple entries detected with single QR scan',
-      severity: 'medium',
-      timestamp: new Date(Date.now() - 900000),
-      status: 'resolved',
-      zone: 'Main Entrance'
-    },
-    {
-      id: 4,
-      type: 'zone_breach',
-      title: 'Restricted Zone Entry',
-      description: 'Visitor entered restricted area without proper authorization',
-      severity: 'high',
-      timestamp: new Date(Date.now() - 1200000),
-      status: 'investigating',
-      zone: 'Restricted Area'
-    }
-  ];
+  // Use real alerts data passed from parent component
+  const realAlerts = alerts || [];
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityColor = (severity: number) => {
     switch (severity) {
-      case 'high': return 'destructive';
-      case 'medium': return 'default';
-      case 'low': return 'secondary';
+      case 3: return 'destructive'; // High severity
+      case 2: return 'default';     // Medium severity  
+      case 1: return 'secondary';   // Low severity
       default: return 'secondary';
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'destructive';
-      case 'investigating': return 'default';
-      case 'resolved': return 'secondary';
-      default: return 'secondary';
+  const getSeverityText = (severity: number) => {
+    switch (severity) {
+      case 3: return 'High';
+      case 2: return 'Medium';
+      case 1: return 'Low';
+      default: return 'Unknown';
     }
   };
 
-  const getAlertIcon = (type: string) => {
-    switch (type) {
+  const getAlertTypeIcon = (alertType: string) => {
+    switch (alertType) {
+      case 'capacity_exceeded':
+        return <AlertTriangle className="h-4 w-4" />;
       case 'unauthorized_access':
-        return <Shield className="h-5 w-5" />;
-      case 'overstay':
-        return <Clock className="h-5 w-5" />;
-      case 'tailgating':
-        return <Eye className="h-5 w-5" />;
-      case 'zone_breach':
-        return <AlertTriangle className="h-5 w-5" />;
+        return <Shield className="h-4 w-4" />;
+      case 'emergency':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'maintenance':
+        return <Clock className="h-4 w-4" />;
       default:
-        return <AlertTriangle className="h-5 w-5" />;
+        return <AlertTriangle className="h-4 w-4" />;
     }
   };
 
@@ -105,7 +65,7 @@ export function SecurityAlertsTab({ alerts }: SecurityAlertsTabProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              {mockAlerts.filter(a => a.status === 'active').length}
+              {realAlerts.filter(a => a.is_active).length}
             </div>
             <p className="text-xs text-muted-foreground">
               Requiring attention
@@ -115,30 +75,30 @@ export function SecurityAlertsTab({ alerts }: SecurityAlertsTabProps) {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Under Investigation</CardTitle>
+            <CardTitle className="text-sm font-medium">High Severity</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {mockAlerts.filter(a => a.status === 'investigating').length}
+              {realAlerts.filter(a => a.severity === 3).length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Being reviewed
+              Critical alerts
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Resolved Today</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Alerts</CardTitle>
             <CheckCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">
-              {mockAlerts.filter(a => a.status === 'resolved').length}
+              {realAlerts.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Successfully handled
+              All alerts today
             </p>
           </CardContent>
         </Card>
@@ -152,71 +112,72 @@ export function SecurityAlertsTab({ alerts }: SecurityAlertsTabProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {mockAlerts.map((alert) => (
-              <Card key={alert.id} className={`${
-                alert.severity === 'high' ? 'border-destructive/50' : ''
-              }`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3">
-                      <div className={`p-2 rounded-full ${
-                        alert.severity === 'high' 
-                          ? 'bg-destructive/10 text-destructive' 
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {getAlertIcon(alert.type)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h4 className="font-medium">{alert.title}</h4>
-                          <Badge variant={getSeverityColor(alert.severity)}>
-                            {alert.severity.toUpperCase()}
-                          </Badge>
-                          <Badge variant={getStatusColor(alert.status)}>
-                            {alert.status.toUpperCase()}
-                          </Badge>
+            {realAlerts.length === 0 ? (
+              <div className="text-center py-8">
+                <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No active security alerts</p>
+              </div>
+            ) : (
+              realAlerts.map((alert) => (
+                <Card key={alert.id} className={`${
+                  alert.severity === 3 ? 'border-destructive/50' : ''
+                }`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3">
+                        <div className={`p-2 rounded-full ${
+                          alert.severity === 3 
+                            ? 'bg-destructive/10 text-destructive' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {getAlertTypeIcon(alert.alert_type)}
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {alert.description}
-                        </p>
-                        <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                          <span>Zone: {alert.zone}</span>
-                          <span>Time: {alert.timestamp.toLocaleTimeString()}</span>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className="font-medium">{alert.title}</h4>
+                            <Badge variant={getSeverityColor(alert.severity)}>
+                              {getSeverityText(alert.severity)}
+                            </Badge>
+                            {alert.is_active && (
+                              <Badge variant="destructive">
+                                ACTIVE
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {alert.message}
+                          </p>
+                          <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                            <span>Zone: {alert.zone?.name || 'Unknown'}</span>
+                            <span>Time: {new Date(alert.created_at).toLocaleTimeString()}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     
-                    <div className="flex space-x-2">
-                      {alert.status === 'active' && (
-                        <>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleInvestigateAlert(alert.id)}
-                          >
-                            Investigate
-                          </Button>
-                          <Button 
-                            size="sm"
-                            onClick={() => handleResolveAlert(alert.id)}
-                          >
-                            Resolve
-                          </Button>
-                        </>
-                      )}
-                      {alert.status === 'investigating' && (
-                        <Button 
-                          size="sm"
-                          onClick={() => handleResolveAlert(alert.id)}
-                        >
-                          Resolve
-                        </Button>
-                      )}
+                      <div className="flex space-x-2">
+                        {alert.is_active && (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleInvestigateAlert(alert.id)}
+                            >
+                              Investigate
+                            </Button>
+                            <Button 
+                              size="sm"
+                              onClick={() => handleResolveAlert(alert.id)}
+                            >
+                              Resolve
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

@@ -14,6 +14,94 @@ export type Database = {
   }
   public: {
     Tables: {
+      documents: {
+        Row: {
+          category: Database["public"]["Enums"]["document_category"]
+          created_at: string | null
+          expires_at: string | null
+          file_path: string
+          file_size: number
+          file_url: string
+          id: string
+          metadata: Json | null
+          mime_type: string | null
+          name: string
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["document_status"]
+          type: Database["public"]["Enums"]["document_type"]
+          updated_at: string | null
+          uploaded_at: string | null
+          user_id: string
+          verified_at: string | null
+          verified_by: string | null
+          visit_request_id: string | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["document_category"]
+          created_at?: string | null
+          expires_at?: string | null
+          file_path: string
+          file_size: number
+          file_url: string
+          id?: string
+          metadata?: Json | null
+          mime_type?: string | null
+          name: string
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          type: Database["public"]["Enums"]["document_type"]
+          updated_at?: string | null
+          uploaded_at?: string | null
+          user_id: string
+          verified_at?: string | null
+          verified_by?: string | null
+          visit_request_id?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["document_category"]
+          created_at?: string | null
+          expires_at?: string | null
+          file_path?: string
+          file_size?: number
+          file_url?: string
+          id?: string
+          metadata?: Json | null
+          mime_type?: string | null
+          name?: string
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          type?: Database["public"]["Enums"]["document_type"]
+          updated_at?: string | null
+          uploaded_at?: string | null
+          user_id?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          visit_request_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_visit_request_id_fkey"
+            columns: ["visit_request_id"]
+            isOneToOne: false
+            referencedRelation: "visit_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           company: string | null
@@ -223,6 +311,248 @@ export type Database = {
           },
         ]
       }
+      zone_access_sessions: {
+        Row: {
+          entered_at: string | null
+          escort_id: string | null
+          exited_at: string | null
+          id: string
+          is_active: boolean | null
+          session_metadata: Json | null
+          visit_request_id: string
+          visitor_id: string
+          zone_access_id: string
+          zone_id: string
+        }
+        Insert: {
+          entered_at?: string | null
+          escort_id?: string | null
+          exited_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          session_metadata?: Json | null
+          visit_request_id: string
+          visitor_id: string
+          zone_access_id: string
+          zone_id: string
+        }
+        Update: {
+          entered_at?: string | null
+          escort_id?: string | null
+          exited_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          session_metadata?: Json | null
+          visit_request_id?: string
+          visitor_id?: string
+          zone_access_id?: string
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_access_sessions_escort_id_fkey"
+            columns: ["escort_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_access_sessions_visit_request_id_fkey"
+            columns: ["visit_request_id"]
+            isOneToOne: false
+            referencedRelation: "visit_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_access_sessions_visitor_id_fkey"
+            columns: ["visitor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_access_sessions_zone_access_id_fkey"
+            columns: ["zone_access_id"]
+            isOneToOne: false
+            referencedRelation: "zone_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_access_sessions_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_alerts: {
+        Row: {
+          alert_type: Database["public"]["Enums"]["zone_alert_type"]
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          message: string
+          metadata: Json | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: number
+          title: string
+          zone_id: string
+        }
+        Insert: {
+          alert_type: Database["public"]["Enums"]["zone_alert_type"]
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message: string
+          metadata?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: number
+          title: string
+          zone_id: string
+        }
+        Update: {
+          alert_type?: Database["public"]["Enums"]["zone_alert_type"]
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message?: string
+          metadata?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: number
+          title?: string
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_alerts_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_entry_logs: {
+        Row: {
+          action: Database["public"]["Enums"]["zone_action"]
+          device_id: string | null
+          id: string
+          location_details: Json | null
+          notes: string | null
+          scanned_by: string | null
+          timestamp: string | null
+          visit_request_id: string | null
+          visitor_id: string
+          zone_id: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["zone_action"]
+          device_id?: string | null
+          id?: string
+          location_details?: Json | null
+          notes?: string | null
+          scanned_by?: string | null
+          timestamp?: string | null
+          visit_request_id?: string | null
+          visitor_id: string
+          zone_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["zone_action"]
+          device_id?: string | null
+          id?: string
+          location_details?: Json | null
+          notes?: string | null
+          scanned_by?: string | null
+          timestamp?: string | null
+          visit_request_id?: string | null
+          visitor_id?: string
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_entry_logs_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_entry_logs_visit_request_id_fkey"
+            columns: ["visit_request_id"]
+            isOneToOne: false
+            referencedRelation: "visit_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_entry_logs_visitor_id_fkey"
+            columns: ["visitor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_entry_logs_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zone_occupancy: {
+        Row: {
+          current_count: number
+          id: string
+          last_updated: string | null
+          max_capacity: number | null
+          updated_by: string | null
+          zone_id: string
+        }
+        Insert: {
+          current_count?: number
+          id?: string
+          last_updated?: string | null
+          max_capacity?: number | null
+          updated_by?: string | null
+          zone_id: string
+        }
+        Update: {
+          current_count?: number
+          id?: string
+          last_updated?: string | null
+          max_capacity?: number | null
+          updated_by?: string | null
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_occupancy_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_occupancy_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: true
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zones: {
         Row: {
           created_at: string | null
@@ -268,8 +598,47 @@ export type Database = {
         Args: { visit_request_id: string }
         Returns: string
       }
+      get_zone_statistics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active_alerts: number
+          active_zones: number
+          current_visitors: number
+          restricted_zones: number
+          total_zones: number
+          zones_at_capacity: number
+        }[]
+      }
+      log_zone_access: {
+        Args: {
+          p_action: Database["public"]["Enums"]["zone_action"]
+          p_device_id?: string
+          p_notes?: string
+          p_scanned_by?: string
+          p_visit_request_id: string
+          p_visitor_id: string
+          p_zone_id: string
+        }
+        Returns: string
+      }
+      resolve_zone_alert: {
+        Args: { p_alert_id: string; p_resolved_by: string }
+        Returns: undefined
+      }
+      update_zone_occupancy: {
+        Args: {
+          p_action: Database["public"]["Enums"]["zone_action"]
+          p_updated_by?: string
+          p_visitor_id?: string
+          p_zone_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
+      document_category: "required" | "optional" | "archived"
+      document_status: "pending" | "approved" | "rejected" | "expired"
+      document_type: "id_proof" | "photo" | "nda" | "insurance" | "other"
       user_role: "visitor" | "host" | "reception" | "admin" | "security"
       visit_status:
         | "pending"
@@ -278,6 +647,12 @@ export type Database = {
         | "checked_in"
         | "checked_out"
         | "cancelled"
+      zone_action: "entry" | "exit" | "emergency_exit" | "forced_entry"
+      zone_alert_type:
+        | "capacity_exceeded"
+        | "unauthorized_access"
+        | "emergency"
+        | "maintenance"
       zone_type:
         | "lobby"
         | "office"
@@ -413,6 +788,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      document_category: ["required", "optional", "archived"],
+      document_status: ["pending", "approved", "rejected", "expired"],
+      document_type: ["id_proof", "photo", "nda", "insurance", "other"],
       user_role: ["visitor", "host", "reception", "admin", "security"],
       visit_status: [
         "pending",
@@ -421,6 +799,13 @@ export const Constants = {
         "checked_in",
         "checked_out",
         "cancelled",
+      ],
+      zone_action: ["entry", "exit", "emergency_exit", "forced_entry"],
+      zone_alert_type: [
+        "capacity_exceeded",
+        "unauthorized_access",
+        "emergency",
+        "maintenance",
       ],
       zone_type: [
         "lobby",
