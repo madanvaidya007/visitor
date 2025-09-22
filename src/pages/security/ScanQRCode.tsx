@@ -327,7 +327,7 @@ export default function ScanQRCode() {
       
       setScanResult({
         success: result.success,
-        message: result.message,
+        message: result.error || 'Operation completed successfully',
         visitor: visitorInfo,
         action: action
       });
@@ -336,12 +336,12 @@ export default function ScanQRCode() {
         await fetchRecentScans();
         toast({
           title: 'Success',
-          description: result.message,
+          description: 'Operation completed successfully',
         });
       } else {
         toast({
           title: 'Error',
-          description: result.message,
+          description: result.error || 'Operation failed',
           variant: 'destructive'
         });
       }

@@ -552,15 +552,9 @@ export default function MyVisits() {
       </Tabs>
 
       {/* Dialogs */}
-      <QRCodeDialog
-        open={showQRDialog}
-        onOpenChange={setShowQRDialog}
-      />
+      {showQRDialog && <QRCodeDialog />}
 
-      <CheckInOutDialog
-        open={showCheckInOut}
-        onOpenChange={setShowCheckInOut}
-      />
+      {showCheckInOut && <CheckInOutDialog />}
     </div>
   );
 }

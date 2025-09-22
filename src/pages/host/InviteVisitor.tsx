@@ -323,7 +323,7 @@ export default function InviteVisitor() {
         start_time: invitationForm.start_time,
         end_time: invitationForm.end_time,
         notes: invitationForm.notes,
-        status: invitationForm.auto_approve ? 'approved' : 'pending'
+        status: (invitationForm.auto_approve ? 'approved' : 'pending') as 'pending' | 'approved'
       };
 
       const { data, error } = await supabase

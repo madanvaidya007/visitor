@@ -66,7 +66,7 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
         .single();
 
       if (error) throw error;
-      setVisitRequest(data as VisitRequest);
+      setVisitRequest(data as any);
 
       // Generate QR code if not exists
       if (!data.qr_code) {

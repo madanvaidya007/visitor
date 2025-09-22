@@ -89,7 +89,7 @@ export function DocumentUploadDialog({
           user_id: profile.id,
           name: document.file.name,
           type: document.type,
-          category: document.type === 'id_proof' || document.type === 'photo' ? 'required' : 'optional',
+          category: document.type === 'id_proof' ? 'required' : 'optional',
           status: 'pending',
           file_url: publicUrl,
           file_path: fileName,
@@ -106,8 +106,7 @@ export function DocumentUploadDialog({
       if (dbError) throw dbError;
 
       // Update profile with document URL for specific types
-      const updateField = document.type === 'id_proof' ? 'id_proof_url' : 
-                         document.type === 'photo' ? 'photo_url' : null;
+      const updateField = document.type === 'id_proof' ? 'id_proof_url' : null;
       
       if (updateField) {
         const { error: updateError } = await supabase

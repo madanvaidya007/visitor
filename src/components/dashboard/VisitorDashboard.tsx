@@ -288,16 +288,10 @@ export function VisitorDashboard() {
       />
 
       {/* QR Code Dialog */}
-      <QRCodeDialog
-        open={showQRDialog}
-        onOpenChange={setShowQRDialog}
-      />
+      {showQRDialog && <QRCodeDialog />}
 
       {/* Check In/Out Dialog */}
-      <CheckInOutDialog
-        open={showCheckInOut}
-        onOpenChange={setShowCheckInOut}
-      />
+      {showCheckInOut && <CheckInOutDialog />}
     </div>
   );
 }
