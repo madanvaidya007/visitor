@@ -3,11 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  QrCode, 
-  Eye, 
-  AlertTriangle, 
-  Shield,
+import { EnhancedQRScanner } from '../security/EnhancedQRScanner';
+import { QRScannerTab } from '../security/QRScannerTab';
+import { ZoneMonitoringTab } from '../security/ZoneMonitoringTab';
+import { SecurityAlertsTab } from '../security/SecurityAlertsTab';
   Users,
   MapPin,
   Clock,

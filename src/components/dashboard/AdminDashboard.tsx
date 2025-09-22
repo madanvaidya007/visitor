@@ -3,11 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Shield, 
-  Users, 
-  MapPin, 
-  BarChart3, 
+import { DocumentVerificationTab } from '../admin/DocumentVerificationTab';
+import { UserManagementTab } from '../admin/UserManagementTab';
+import { ZoneManagementTab } from '../admin/ZoneManagementTab';
+import { ReportsTab } from '../admin/ReportsTab';
   Settings,
   AlertTriangle,
   Building,
