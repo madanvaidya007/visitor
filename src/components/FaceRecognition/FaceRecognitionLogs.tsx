@@ -27,6 +27,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { 
   Activity, 
   Search, 
@@ -115,8 +116,8 @@ export const FaceRecognitionLogs: React.FC = () => {
     try {
       // Get unique cameras and persons from logs
       const logData = await FaceDatabaseService.getLogs();
-      const uniqueCameras = [...new Set(logData.map(log => log.cameraId))];
-      const uniquePersons = [...new Set(logData.map(log => log.personId).filter(Boolean))];
+      const uniqueCameras = [...new Set(logData.map(log => log.camera_id))];
+      const uniquePersons = [...new Set(logData.map(log => log.person_id).filter(Boolean))];
       
       setCameras(uniqueCameras);
       setPersons(uniquePersons);
@@ -132,11 +133,11 @@ export const FaceRecognitionLogs: React.FC = () => {
     ).length;
     
     const uniquePersons = new Set(
-      logData.map(log => log.personId).filter(Boolean)
+      logData.map(log => log.person_id).filter(Boolean)
     ).size;
     
     const recognitionLogs = logData.filter(log => 
-      log.eventType === 'person_recognized' && log.confidence
+      log.event_type === 'person_recognized' && log.confidence
     );
     
     const averageConfidence = recognitionLogs.length > 0
@@ -144,7 +145,7 @@ export const FaceRecognitionLogs: React.FC = () => {
       : 0;
     
     const eventTypeCounts = logData.reduce((counts, log) => {
-      counts[log.eventType] = (counts[log.eventType] || 0) + 1;
+      counts[log.event_type] = (counts[log.event_type] || 0) + 1;
       return counts;
     }, {} as Record<string, number>);
     
@@ -163,23 +164,23 @@ export const FaceRecognitionLogs: React.FC = () => {
     // Apply search term
     if (searchTerm) {
       filtered = filtered.filter(log =>
-        log.personName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.personId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.cameraId.toLowerCase().includes(searchTerm.toLowerCase())
+        log.person_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.person_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.camera_id.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
     // Apply filters
     if (filters.cameraId) {
-      filtered = filtered.filter(log => log.cameraId === filters.cameraId);
+      filtered = filtered.filter(log => log.camera_id === filters.cameraId);
     }
     
     if (filters.personId) {
-      filtered = filtered.filter(log => log.personId === filters.personId);
+      filtered = filtered.filter(log => log.person_id === filters.personId);
     }
     
     if (filters.eventType) {
-      filtered = filtered.filter(log => log.eventType === filters.eventType);
+      filtered = filtered.filter(log => log.event_type === filters.eventType);
     }
     
     if (filters.dateFrom) {
@@ -216,10 +217,10 @@ export const FaceRecognitionLogs: React.FC = () => {
       ['Timestamp', 'Camera ID', 'Person ID', 'Person Name', 'Event Type', 'Confidence'].join(','),
       ...filteredLogs.map(log => [
         new Date(log.timestamp).toISOString(),
-        log.cameraId,
-        log.personId || '',
-        log.personName || '',
-        log.eventType,
+        log.camera_id,
+        log.person_id || '',
+        log.person_name || '',
+        log.event_type,
         log.confidence?.toFixed(3) || ''
       ].join(','))
     ].join('\n');
@@ -507,23 +508,23 @@ export const FaceRecognitionLogs: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <Camera className="h-4 w-4 text-gray-400" />
-                      <span>{log.cameraId}</span>
+                      <span>{log.camera_id}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge 
-                      variant={getEventTypeColor(log.eventType)}
+                      variant={getEventTypeColor(log.event_type)}
                       className="flex items-center space-x-1 w-fit"
                     >
-                      {getEventTypeIcon(log.eventType)}
-                      <span>{formatEventType(log.eventType)}</span>
+                      {getEventTypeIcon(log.event_type)}
+                      <span>{formatEventType(log.event_type)}</span>
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {log.personName ? (
+                    {log.person_name ? (
                       <div>
-                        <div className="font-medium">{log.personName}</div>
-                        <div className="text-sm text-gray-600">{log.personId}</div>
+                        <div className="font-medium">{log.person_name}</div>
+                        <div className="text-sm text-gray-600">{log.person_id}</div>
                       </div>
                     ) : (
                       <span className="text-gray-400">Unknown</span>
@@ -576,12 +577,12 @@ export const FaceRecognitionLogs: React.FC = () => {
                               </div>
                               <div>
                                 <Label className="text-sm font-medium">Camera ID</Label>
-                                <p className="text-sm text-gray-600">{selectedLog.cameraId}</p>
+                                <p className="text-sm text-gray-600">{selectedLog.camera_id}</p>
                               </div>
                               <div>
                                 <Label className="text-sm font-medium">Event Type</Label>
                                 <p className="text-sm text-gray-600">
-                                  {formatEventType(selectedLog.eventType)}
+                                  {formatEventType(selectedLog.event_type)}
                                 </p>
                               </div>
                               <div>
@@ -593,26 +594,26 @@ export const FaceRecognitionLogs: React.FC = () => {
                                   }
                                 </p>
                               </div>
-                              {selectedLog.personId && (
+                              {selectedLog.person_id && (
                                 <>
                                   <div>
                                     <Label className="text-sm font-medium">Person ID</Label>
-                                    <p className="text-sm text-gray-600">{selectedLog.personId}</p>
+                                    <p className="text-sm text-gray-600">{selectedLog.person_id}</p>
                                   </div>
                                   <div>
                                     <Label className="text-sm font-medium">Person Name</Label>
-                                    <p className="text-sm text-gray-600">{selectedLog.personName}</p>
+                                    <p className="text-sm text-gray-600">{selectedLog.person_name}</p>
                                   </div>
                                 </>
                               )}
                             </div>
                             
-                            {selectedLog.boundingBox && (
+                            {selectedLog.bounding_box && (
                               <div>
                                 <Label className="text-sm font-medium">Bounding Box</Label>
                                 <p className="text-sm text-gray-600 font-mono">
-                                  x: {selectedLog.boundingBox.x}, y: {selectedLog.boundingBox.y}, 
-                                  w: {selectedLog.boundingBox.width}, h: {selectedLog.boundingBox.height}
+                                  x: {selectedLog.bounding_box.x}, y: {selectedLog.bounding_box.y}, 
+                                  w: {selectedLog.bounding_box.width}, h: {selectedLog.bounding_box.height}
                                 </p>
                               </div>
                             )}

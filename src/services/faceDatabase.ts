@@ -417,6 +417,107 @@ export class FaceDatabaseService {
     }
   }
 
+  // Instance methods for interface compatibility
+  async createProfile(profile: Omit<FaceProfile, 'id' | 'created_at' | 'updated_at'>): Promise<FaceProfile | null> {
+    try {
+      const { data, error } = await supabase
+        .from('face_profiles')
+        .insert(profile)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as FaceProfile;
+    } catch (error) {
+      console.error('Failed to create profile:', error);
+      return null;
+    }
+  }
+
+  async getProfiles(filters?: { is_active?: boolean; person_name?: string }): Promise<FaceProfile[]> {
+    try {
+      let query = supabase.from('face_profiles').select('*');
+      
+      if (filters?.is_active !== undefined) {
+        query = query.eq('is_active', filters.is_active);
+      }
+      
+      if (filters?.person_name) {
+        query = query.ilike('person_name', `%${filters.person_name}%`);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as FaceProfile[];
+    } catch (error) {
+      console.error('Failed to get profiles:', error);
+      return [];
+    }
+  }
+
+  async updateProfile(id: string, updates: Partial<FaceProfile>): Promise<FaceProfile | null> {
+    try {
+      const { data, error } = await supabase
+        .from('face_profiles')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as FaceProfile;
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      return null;
+    }
+  }
+
+  async deleteProfile(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('face_profiles')
+        .update({ is_active: false })
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Failed to delete profile:', error);
+      return false;
+    }
+  }
+
+  async logRecognition(log: Omit<FaceRecognitionLog, 'id'>): Promise<FaceRecognitionLog | null> {
+    try {
+      const { data, error } = await supabase
+        .from('face_recognition_logs')
+        .insert(log)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as FaceRecognitionLog;
+    } catch (error) {
+      console.error('Failed to log recognition:', error);
+      return null;
+    }
+  }
+
+  async getLogs(filters?: {
+    camera_id?: string;
+    person_id?: string;
+    event_type?: string;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+  }): Promise<FaceRecognitionLog[]> {
+    return this.getRecognitionLogs(filters);
+  }
+
   // Static methods for easy access
   static async getStatistics(): Promise<{
     totalProfiles: number;
@@ -439,6 +540,27 @@ export class FaceDatabaseService {
 
   static async getProfiles(filters?: { is_active?: boolean; person_name?: string }): Promise<FaceProfile[]> {
     return faceDatabaseService.getProfiles(filters);
+  }
+
+  static async getAllProfiles(): Promise<FaceProfile[]> {
+    return faceDatabaseService.getAllFaceProfiles();
+  }
+
+  static async addProfile(data: {
+    personId: string;
+    personName: string;
+    faceEncoding: string;
+    confidenceThreshold: number;
+  }): Promise<FaceProfile> {
+    return faceDatabaseService.saveFaceProfile(
+      data.personId,
+      data.personName,
+      new Float32Array(), // Will be properly encoded
+      {
+        source: 'manual_upload',
+        quality_score: 0.8
+      }
+    );
   }
 
   static async updateProfile(id: string, updates: Partial<FaceProfile>): Promise<FaceProfile | null> {

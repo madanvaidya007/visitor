@@ -169,11 +169,8 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
           canvas.height = img.height;
           ctx.drawImage(img, 0, 0);
           
-          // Get image data
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          
-          // Detect faces
-          const detections = await FaceRecognitionService.detectFaces(imageData);
+          // Detect faces using canvas element
+          const detections = await FaceRecognitionService.detectFaces(canvas);
           
           if (detections.length === 0) {
             throw new Error('No face detected in the image');
@@ -183,17 +180,8 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
             throw new Error('Multiple faces detected. Please use an image with a single face');
           }
           
-          // Extract face region
-          const detection = detections[0];
-          const faceImageData = ctx.getImageData(
-            detection.boundingBox.x,
-            detection.boundingBox.y,
-            detection.boundingBox.width,
-            detection.boundingBox.height
-          );
-          
-          // Generate face encoding
-          const encoding = await FaceRecognitionService.generateFaceEncoding(faceImageData);
+          // Generate face encoding from canvas
+          const encoding = await FaceRecognitionService.generateFaceEncoding(canvas);
           resolve(encoding);
           
         } catch (error) {
@@ -255,14 +243,14 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
       setError(null);
       
       let updateData: Partial<FaceProfile> = {
-        personName: newProfile.personName,
-        confidenceThreshold: newProfile.confidenceThreshold
+        person_name: newProfile.personName,
+        confidence_threshold: newProfile.confidenceThreshold
       };
       
       // If new image is provided, process it
       if (newProfile.imageFile) {
         const faceEncoding = await processFaceImage(newProfile.imageFile);
-        updateData.faceEncoding = faceEncoding;
+        updateData.face_encoding = faceEncoding;
       }
       
       await FaceDatabaseService.updateProfile(selectedProfile.id, updateData);
@@ -296,7 +284,7 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
   const handleToggleActive = async (profile: FaceProfile) => {
     try {
       await FaceDatabaseService.updateProfile(profile.id, {
-        isActive: !profile.isActive
+        is_active: !profile.is_active
       });
       await loadProfiles();
       onProfilesChange();
@@ -309,17 +297,17 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
   const openEditDialog = (profile: FaceProfile) => {
     setSelectedProfile(profile);
     setNewProfile({
-      personId: profile.personId,
-      personName: profile.personName,
-      confidenceThreshold: profile.confidenceThreshold
+      personId: profile.person_id,
+      personName: profile.person_name,
+      confidenceThreshold: profile.confidence_threshold
     });
     setPreviewImage(null);
     setIsEditDialogOpen(true);
   };
 
   const filteredProfiles = profiles.filter(profile =>
-    profile.personName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    profile.personId.toLowerCase().includes(searchTerm.toLowerCase())
+    profile.person_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    profile.person_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -528,16 +516,16 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
             <TableBody>
               {filteredProfiles.map((profile) => (
                 <TableRow key={profile.id}>
-                  <TableCell className="font-medium">{profile.personId}</TableCell>
-                  <TableCell>{profile.personName}</TableCell>
-                  <TableCell>{(profile.confidenceThreshold * 100).toFixed(0)}%</TableCell>
+                  <TableCell className="font-medium">{profile.person_id}</TableCell>
+                  <TableCell>{profile.person_name}</TableCell>
+                  <TableCell>{(profile.confidence_threshold * 100).toFixed(0)}%</TableCell>
                   <TableCell>
-                    <Badge variant={profile.isActive ? "default" : "secondary"}>
-                      {profile.isActive ? "Active" : "Inactive"}
+                    <Badge variant={profile.is_active ? "default" : "secondary"}>
+                      {profile.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {new Date(profile.createdAt).toLocaleDateString()}
+                    {new Date(profile.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -546,7 +534,7 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
                         size="sm"
                         onClick={() => handleToggleActive(profile)}
                       >
-                        {profile.isActive ? (
+                        {profile.is_active ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />

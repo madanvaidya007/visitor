@@ -110,6 +110,15 @@ export class FaceRecognitionService {
     return faceRecognitionService.clearTracks();
   }
 
+  static async generateFaceEncoding(imageData: HTMLCanvasElement): Promise<string> {
+    // Extract face descriptor from canvas
+    const detections = await faceRecognitionService.detectFaces(imageData);
+    if (detections.length === 0) {
+      throw new Error('No face detected');
+    }
+    return JSON.stringify(Array.from(detections[0].descriptor));
+  }
+
   // Instance methods
   async initialize(): Promise<void> {
     if (this.isInitialized) {
