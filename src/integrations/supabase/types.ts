@@ -102,6 +102,123 @@ export type Database = {
           },
         ]
       }
+      face_profiles: {
+        Row: {
+          confidence_threshold: number
+          created_at: string
+          face_encoding: string
+          id: string
+          is_active: boolean
+          metadata: Json | null
+          person_id: string
+          person_name: string
+          updated_at: string
+        }
+        Insert: {
+          confidence_threshold?: number
+          created_at?: string
+          face_encoding: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json | null
+          person_id: string
+          person_name: string
+          updated_at?: string
+        }
+        Update: {
+          confidence_threshold?: number
+          created_at?: string
+          face_encoding?: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json | null
+          person_id?: string
+          person_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      face_recognition_logs: {
+        Row: {
+          bounding_box: Json | null
+          camera_id: string
+          confidence: number | null
+          event_type: string
+          frame_data: string | null
+          id: string
+          person_id: string | null
+          person_name: string | null
+          timestamp: string
+        }
+        Insert: {
+          bounding_box?: Json | null
+          camera_id: string
+          confidence?: number | null
+          event_type: string
+          frame_data?: string | null
+          id?: string
+          person_id?: string | null
+          person_name?: string | null
+          timestamp?: string
+        }
+        Update: {
+          bounding_box?: Json | null
+          camera_id?: string
+          confidence?: number | null
+          event_type?: string
+          frame_data?: string | null
+          id?: string
+          person_id?: string | null
+          person_name?: string | null
+          timestamp?: string
+        }
+        Relationships: []
+      }
+      face_recognition_settings: {
+        Row: {
+          created_at: string
+          detection_threshold: number
+          enable_frame_capture: boolean
+          enable_logging: boolean
+          encryption_key_id: string
+          id: string
+          log_retention_days: number
+          min_detections_for_track: number
+          recognition_threshold: number
+          tracking_max_age: number
+          tracking_max_distance: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          detection_threshold?: number
+          enable_frame_capture?: boolean
+          enable_logging?: boolean
+          encryption_key_id?: string
+          id?: string
+          log_retention_days?: number
+          min_detections_for_track?: number
+          recognition_threshold?: number
+          tracking_max_age?: number
+          tracking_max_distance?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          detection_threshold?: number
+          enable_frame_capture?: boolean
+          enable_logging?: boolean
+          encryption_key_id?: string
+          id?: string
+          log_retention_days?: number
+          min_detections_for_track?: number
+          recognition_threshold?: number
+          tracking_max_age?: number
+          tracking_max_distance?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company: string | null
