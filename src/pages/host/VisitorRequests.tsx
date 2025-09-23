@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Calendar, 
   Clock, 
@@ -21,19 +22,27 @@ import {
   AlertCircle, 
   Eye, 
   RefreshCw,
-  Bell,
   Users,
-  FileText,
+  TrendingUp,
   MapPin,
   Phone,
   Mail,
   MessageSquare,
-  ThumbsUp,
-  ThumbsDown,
-  QrCode
+  History,
+  Activity,
+  Star,
+  UserCheck,
+  UserX,
+  BarChart3,
+  Calendar as CalendarIcon,
+  Timer,
+  Shield,
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useRealtimeZoneData } from '@/hooks/useRealtimeZoneData';
 import { supabase } from '@/integrations/supabase/client';
 
 interface VisitRequest {

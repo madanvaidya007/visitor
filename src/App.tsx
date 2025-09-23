@@ -16,6 +16,11 @@ import MyVisitors from "./pages/host/MyVisitors";
 import InviteVisitor from "./pages/host/InviteVisitor";
 import ZoneAccess from "./pages/host/ZoneAccess";
 import ScanQRCode from "./pages/security/ScanQRCode";
+import ZoneMonitoring from "./pages/security/ZoneMonitoring";
+import SecurityAlerts from "./pages/security/SecurityAlerts";
+import Evacuation from "./pages/security/Evacuation";
+import GuardDashboard from "./pages/guard/GuardDashboard";
+import { FaceRecognitionDashboard } from "./components/FaceRecognition/FaceRecognitionDashboard";
 
 const queryClient = new QueryClient();
 
@@ -134,22 +139,34 @@ const App = () => (
           } />
           <Route path="/zone-monitoring" element={
             <DashboardLayout>
-              <div>Zone Monitoring Page - Coming Soon</div>
+              <ZoneMonitoring />
             </DashboardLayout>
           } />
           <Route path="/alerts" element={
             <DashboardLayout>
-              <div>Security Alerts Page - Coming Soon</div>
+              <SecurityAlerts />
             </DashboardLayout>
           } />
           <Route path="/evacuation" element={
             <DashboardLayout>
-              <div>Evacuation Page - Coming Soon</div>
+              <Evacuation />
             </DashboardLayout>
           } />
           <Route path="/visitor-tracking" element={
             <DashboardLayout>
               <div>Visitor Tracking Page - Coming Soon</div>
+            </DashboardLayout>
+          } />
+          <Route path="/face-recognition" element={
+            <DashboardLayout>
+              <FaceRecognitionDashboard />
+            </DashboardLayout>
+          } />
+          
+          {/* Guard Routes */}
+          <Route path="/guard-dashboard" element={
+            <DashboardLayout>
+              <GuardDashboard />
             </DashboardLayout>
           } />
           

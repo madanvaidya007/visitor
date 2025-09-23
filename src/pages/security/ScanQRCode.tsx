@@ -66,8 +66,9 @@ export default function ScanQRCode() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraActiveRef = useRef<boolean>(false);
   
-  const { scanQRCode, loading } = useQRCode();
+  const { scanQRCode, validateQRCodeString, loading } = useQRCode();
   const { toast } = useToast();
   const { profile } = useAuth();
 
@@ -79,7 +80,7 @@ export default function ScanQRCode() {
   // Ensure component is ready after mount
   useEffect(() => {
     const checkComponentReady = () => {
-      if (videoRef.current && canvasRef.current) {
+      if (canvasRef.current) {
         setComponentReady(true);
         addDebugLog('✅ Component fully mounted and ready');
       } else {
@@ -193,10 +194,26 @@ export default function ScanQRCode() {
         console.log('✅ Video metadata loaded, starting detection');
         addDebugLog('✅ Video metadata loaded, starting detection');
         setCameraActive(true);
+        cameraActiveRef.current = true;
         setIsScanning(true);
         
-        // Start QR code detection
-        detectQRCode();
+        // Wait a bit more for video to be fully ready
+        setTimeout(() => {
+          if (videoRef.current && videoRef.current.readyState >= 2) {
+            addDebugLog('✅ Video ready, starting QR detection');
+            detectQRCode();
+          } else {
+            addDebugLog('⏳ Video still loading, waiting more...');
+            setTimeout(() => {
+              if (videoRef.current && videoRef.current.readyState >= 2) {
+                addDebugLog('✅ Video ready after wait, starting QR detection');
+                detectQRCode();
+              } else {
+                addDebugLog('❌ Video failed to load properly');
+              }
+            }, 1000);
+          }
+        }, 200);
       };
 
       // Add error handler for video element
@@ -255,12 +272,25 @@ export default function ScanQRCode() {
       streamRef.current = null;
     }
     setCameraActive(false);
+    cameraActiveRef.current = false;
     setIsScanning(false);
   };
 
   const detectQRCode = () => {
-    if (!videoRef.current || !canvasRef.current || !isScanning) {
-      addDebugLog('❌ Detection stopped - missing refs or not scanning');
+    // Enhanced ref checking with more detailed logging
+    if (!videoRef.current) {
+      addDebugLog('❌ Detection stopped - videoRef is null');
+      return;
+    }
+    
+    if (!canvasRef.current) {
+      addDebugLog('❌ Detection stopped - canvasRef is null');
+      return;
+    }
+    
+    // Use ref instead of state to avoid timing issues
+    if (!cameraActiveRef.current) {
+      addDebugLog('❌ Detection stopped - camera not active (ref check)');
       return;
     }
 
@@ -274,19 +304,37 @@ export default function ScanQRCode() {
     }
 
     if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      addDebugLog('⏳ Video not ready, retrying...');
-      requestAnimationFrame(detectQRCode);
+      addDebugLog(`⏳ Video not ready (readyState: ${video.readyState}), retrying...`);
+      setTimeout(() => detectQRCode(), 100);
       return;
     }
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Ensure video has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      addDebugLog(`⏳ Video dimensions not ready (${video.videoWidth}x${video.videoHeight}), retrying...`);
+      setTimeout(() => detectQRCode(), 100);
+      return;
+    }
 
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    
     try {
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // Add debug info about image data
+      addDebugLog(`🔍 Scanning frame: ${canvas.width}x${canvas.height}, data length: ${imageData.data.length}`);
+      
+      // Check if jsQR is available
+      if (typeof jsQR !== 'function') {
+        addDebugLog('❌ jsQR library not loaded properly');
+        return;
+      }
+      
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
       
       if (code) {
         addDebugLog(`✅ QR Code detected: ${code.data.substring(0, 50)}...`);
@@ -296,49 +344,82 @@ export default function ScanQRCode() {
         // Automatically process the detected QR code
         handleQRCodeDetected(code.data);
       } else {
-        // Continue scanning
-        requestAnimationFrame(detectQRCode);
+        // Continue scanning with a slight delay to prevent excessive CPU usage
+        if (cameraActiveRef.current && videoRef.current && canvasRef.current) {
+          setTimeout(() => detectQRCode(), 100);
+        }
       }
     } catch (error) {
-      addDebugLog(`❌ QR detection error: ${error.message}`);
-      requestAnimationFrame(detectQRCode);
+      addDebugLog(`❌ QR detection error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('QR Detection Error:', error);
+      if (isScanning && videoRef.current && canvasRef.current) {
+        setTimeout(() => detectQRCode(), 100);
+      }
     }
   };
 
   const handleQRCodeDetected = async (qrCodeData: string) => {
     try {
-      // Get visitor information
+      addDebugLog('🔍 Processing detected QR code...');
+      
+      // Pre-validate QR code format and expiration
+      const validation = validateQRCodeString(qrCodeData);
+      if (!validation.valid) {
+        setScanResult({
+          success: false,
+          message: 'Invalid QR Code',
+          error: validation.reason || 'QR code validation failed'
+        });
+        addDebugLog(`❌ QR validation failed: ${validation.reason}`);
+        return;
+      }
+
+      addDebugLog(`✅ QR code pre-validation passed (v${validation.data?.version})`);
+      
+      // Get visitor information with enhanced validation
       const visitorInfo = await getVisitorInfo(qrCodeData);
       
       if (!visitorInfo) {
         setScanResult({
           success: false,
-          message: 'Invalid QR Code',
-          error: 'QR code not found or expired'
+          message: 'Invalid Digital Visit Pass',
+          error: 'QR code not found, expired, or not valid for current time'
         });
+        addDebugLog('❌ Invalid visit pass detected');
         return;
       }
 
+      addDebugLog(`✅ Valid visit pass for ${visitorInfo.visitor.full_name}`);
+
       // Determine action based on current status
       const action = visitorInfo.status === 'checked_in' ? 'check_out' : 'check_in';
+      addDebugLog(`📋 Action determined: ${action}`);
       
-      // Perform the scan action
+      // Perform the scan action with enhanced logging
       const result = await scanQRCode(qrCodeData, action, profile?.id);
       
-      setScanResult({
-        success: result.success,
-        message: result.error || 'Operation completed successfully',
-        visitor: visitorInfo,
-        action: action
-      });
-
       if (result.success) {
+        addDebugLog(`✅ ${action} completed successfully`);
+        setScanResult({
+          success: true,
+          message: `${action === 'check_in' ? 'Check-in' : 'Check-out'} completed successfully`,
+          visitor: visitorInfo,
+          action: action
+        });
+
         await fetchRecentScans();
         toast({
           title: 'Success',
-          description: 'Operation completed successfully',
+          description: `${visitorInfo.visitor.full_name} has been ${action.replace('_', ' ')}ed successfully`,
         });
       } else {
+        addDebugLog(`❌ ${action} failed: ${result.error}`);
+        setScanResult({
+          success: false,
+          message: `${action.replace('_', ' ')} failed`,
+          error: result.error || 'Operation failed'
+        });
+        
         toast({
           title: 'Error',
           description: result.error || 'Operation failed',
@@ -347,10 +428,17 @@ export default function ScanQRCode() {
       }
     } catch (error) {
       console.error('Error processing QR code:', error);
+      addDebugLog(`❌ Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setScanResult({
         success: false,
-        message: 'Error processing QR code',
+        message: 'Error processing digital visit pass',
         error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      toast({
+        title: 'Processing Error',
+        description: 'Failed to process the digital visit pass. Please try again.',
+        variant: 'destructive'
       });
     }
   };
@@ -358,23 +446,68 @@ export default function ScanQRCode() {
   const handleManualScan = async (action: 'check_in' | 'check_out') => {
     if (!qrCode.trim()) {
       toast({
-        title: 'QR Code Required',
-        description: 'Please enter or scan a QR code.',
+        title: 'Digital Visit Pass Required',
+        description: 'Please enter or scan a digital visit pass QR code.',
         variant: 'destructive'
       });
       return;
     }
 
     try {
-      // First, get visitor information
+      addDebugLog(`🔍 Processing manual scan for ${action}...`);
+      
+      // Pre-validate QR code format and expiration
+      const validation = validateQRCodeString(qrCode);
+      if (!validation.valid) {
+        setScanResult({
+          success: false,
+          message: 'Invalid QR Code',
+          error: validation.reason || 'QR code validation failed'
+        });
+        addDebugLog(`❌ Manual scan QR validation failed: ${validation.reason}`);
+        toast({
+          title: 'Invalid QR Code',
+          description: validation.reason || 'QR code validation failed',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      addDebugLog(`✅ Manual scan QR code pre-validation passed (v${validation.data?.version})`);
+      
+      // First, get visitor information with enhanced validation
       const visitorInfo = await getVisitorInfo(qrCode);
       
       if (!visitorInfo) {
         setScanResult({
           success: false,
-          message: 'Invalid QR Code',
-          error: 'QR code not found or expired'
+          message: 'Invalid Digital Visit Pass',
+          error: 'QR code not found, expired, or not valid for current time'
         });
+        addDebugLog('❌ Invalid visit pass in manual scan');
+        return;
+      }
+
+      addDebugLog(`✅ Valid visit pass for ${visitorInfo.visitor.full_name}`);
+
+      // Validate action against current status
+      if (action === 'check_in' && visitorInfo.status === 'checked_in') {
+        setScanResult({
+          success: false,
+          message: 'Already Checked In',
+          error: 'This visitor is already checked in. Use check-out instead.'
+        });
+        addDebugLog('❌ Visitor already checked in');
+        return;
+      }
+
+      if (action === 'check_out' && visitorInfo.status !== 'checked_in') {
+        setScanResult({
+          success: false,
+          message: 'Not Checked In',
+          error: 'This visitor is not currently checked in. Use check-in instead.'
+        });
+        addDebugLog('❌ Visitor not checked in');
         return;
       }
 
@@ -382,6 +515,7 @@ export default function ScanQRCode() {
       const result = await scanQRCode(qrCode, action, profile?.id);
       
       if (result.success) {
+        addDebugLog(`✅ Manual ${action} completed successfully`);
         setScanResult({
           success: true,
           message: `${action === 'check_in' ? 'Check-in' : 'Check-out'} successful`,
@@ -390,31 +524,116 @@ export default function ScanQRCode() {
         });
         setQrCode('');
         fetchRecentScans();
+        
+        toast({
+          title: 'Success',
+          description: `${visitorInfo.visitor.full_name} has been ${action.replace('_', ' ')}ed successfully`,
+        });
       } else {
+        addDebugLog(`❌ Manual ${action} failed: ${result.error}`);
         setScanResult({
           success: false,
-          message: 'Scan Failed',
+          message: `${action.replace('_', ' ')} Failed`,
           error: result.error
+        });
+        
+        toast({
+          title: 'Error',
+          description: result.error || 'Operation failed',
+          variant: 'destructive'
         });
       }
     } catch (error: any) {
+      addDebugLog(`❌ Manual scan error: ${error.message}`);
       setScanResult({
         success: false,
-        message: 'Scan Failed',
+        message: `${action.replace('_', ' ')} Failed`,
         error: error.message
+      });
+      
+      toast({
+        title: 'Processing Error',
+        description: 'Failed to process the digital visit pass. Please try again.',
+        variant: 'destructive'
       });
     }
   };
 
   const getVisitorInfo = async (qrCode: string): Promise<VisitorInfo | null> => {
     try {
+      addDebugLog(`🔍 Validating QR code (full): ${qrCode}`);
+      addDebugLog(`📏 QR code length: ${qrCode.length}`);
+      addDebugLog(`🔤 QR code type: ${typeof qrCode}`);
+      
       // Extract visit request ID from QR code
-      const parts = qrCode.split('-');
-      if (parts.length < 2 || parts[0] !== 'VMS') {
-        throw new Error('Invalid QR code format');
+      // Supports multiple formats:
+      // Current: QR_{visitRequestId}_{timestamp}
+      // Legacy: VMS-{visitRequestId}-{timestamp}
+      // Legacy UUID: VMS-{uuid-parts}-{timestamp}
+      // Enhanced: VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
+      if (!qrCode.startsWith('VMS-') && !qrCode.startsWith('QR_')) {
+        addDebugLog(`❌ Invalid QR format. Expected to start with 'VMS-' or 'QR_', Got: ${qrCode}`);
+        throw new Error('Invalid QR code format. Expected digital visit pass format.');
       }
       
-      const visitRequestId = parts[1];
+      let visitRequestId: string;
+      let timestamp: string;
+      
+      // Handle QR_ format: QR_{visitRequestId}_{timestamp}
+      if (qrCode.startsWith('QR_')) {
+        const parts = qrCode.split('_');
+        if (parts.length >= 3) {
+          visitRequestId = parts[1];
+          timestamp = parts[2];
+          addDebugLog(`🔧 Detected QR_ format - ID: ${visitRequestId}, Timestamp: ${timestamp}`);
+        } else {
+          addDebugLog(`❌ Invalid QR_ format. Expected minimum 3 parts, Got: ${qrCode}`);
+          throw new Error('Invalid QR code format. Expected digital visit pass format.');
+        }
+      } else {
+        // Split by hyphens and extract parts for VMS- formats
+        const parts = qrCode.split('-');
+        if (parts.length < 3) {
+          addDebugLog(`❌ Invalid QR format. Expected minimum 3 parts, Got: ${qrCode}`);
+          throw new Error('Invalid QR code format. Expected digital visit pass format.');
+        }
+        
+        // Handle enhanced format: VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
+        if (parts.length >= 7 && parts[1].startsWith('v')) {
+          addDebugLog(`🔧 Detected enhanced QR format v${parts[1].substring(1)}`);
+          
+          if (parts.length === 7) {
+            // Simple ID format: VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
+            visitRequestId = parts[2];
+            timestamp = parts[3];
+          } else if (parts.length === 11) {
+            // UUID format: VMS-v2.0-{uuid-part1}-{uuid-part2}-{uuid-part3}-{uuid-part4}-{uuid-part5}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
+            visitRequestId = parts.slice(2, 7).join('-'); // Reconstruct UUID
+            timestamp = parts[7];
+          } else {
+            addDebugLog(`❌ Invalid enhanced QR format. Unexpected number of parts: ${parts.length}, Got: ${qrCode}`);
+            throw new Error('Invalid QR code format. Expected digital visit pass format.');
+          }
+        }
+        // Handle legacy formats
+        else if (parts.length === 3) {
+        // Simple legacy format: VMS-{visitRequestId}-{timestamp}
+        addDebugLog(`🔧 Detected legacy QR format (simple)`);
+        visitRequestId = parts[1];
+        timestamp = parts[2];
+      } else if (parts.length === 7) {
+        // UUID legacy format: VMS-{uuid-part1}-{uuid-part2}-{uuid-part3}-{uuid-part4}-{uuid-part5}-{timestamp}
+        addDebugLog(`🔧 Detected legacy QR format (UUID)`);
+        visitRequestId = parts.slice(1, 6).join('-'); // Reconstruct UUID
+        timestamp = parts[6];
+      } else {
+          addDebugLog(`❌ Invalid QR format. Unexpected number of parts: ${parts.length}, Got: ${qrCode}`);
+          throw new Error('Invalid QR code format. Expected digital visit pass format.');
+        }
+      }
+      
+      addDebugLog(`📋 Extracted visit request ID: ${visitRequestId}`);
+      addDebugLog(`⏰ Extracted timestamp: ${timestamp}`);
 
       const { data, error } = await supabase
         .from('visit_requests')
@@ -427,17 +646,101 @@ export default function ScanQRCode() {
         .eq('qr_code', qrCode)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        addDebugLog(`❌ Database error: ${error.message}`);
+        throw error;
+      }
+
+      // Enhanced validation for digital visit pass
+      if (!data) {
+        addDebugLog('❌ Visit request not found in database');
+        throw new Error('Visit request not found');
+      }
+
+      addDebugLog(`✅ Found visit request for ${data.visitor?.full_name || 'Unknown visitor'}`);
+      addDebugLog(`📅 Visit date: ${data.visit_date}, Status: ${data.status}`);
+
+      // Check if visit is for today or future dates
+      const visitDate = new Date(data.visit_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      visitDate.setHours(0, 0, 0, 0);
+
+      if (visitDate < today) {
+        addDebugLog(`❌ Visit pass expired. Visit date: ${data.visit_date}, Today: ${today.toISOString().split('T')[0]}`);
+        throw new Error('Visit pass has expired');
+      }
+
+      // Check if visit is within time window (30 minutes before start time to end time)
+      const now = new Date();
+      const startTime = new Date(`${data.visit_date}T${data.start_time}`);
+      const endTime = new Date(`${data.visit_date}T${data.end_time}`);
+      const earlyAccessTime = new Date(startTime.getTime() - 30 * 60 * 1000); // 30 minutes before
+
+      addDebugLog(`⏰ Time validation - Now: ${now.toLocaleTimeString()}, Early access: ${earlyAccessTime.toLocaleTimeString()}, End: ${endTime.toLocaleTimeString()}`);
+
+      if (now < earlyAccessTime) {
+        addDebugLog('❌ Visit pass not yet valid - too early');
+        throw new Error('Visit pass is not yet valid. Please arrive within 30 minutes of your scheduled time.');
+      }
+
+      if (now > endTime && data.status !== 'checked_in') {
+        addDebugLog('❌ Visit pass expired - past end time and not checked in');
+        throw new Error('Visit pass has expired for the scheduled time');
+      }
+
+      // Validate visit status
+      if (!['approved', 'checked_in'].includes(data.status)) {
+        addDebugLog(`❌ Invalid status: ${data.status}. Expected: approved or checked_in`);
+        throw new Error('Visit pass is not approved or has been cancelled');
+      }
+
+      addDebugLog(`✅ All validations passed for visitor: ${data.visitor?.full_name}`);
       return data as VisitorInfo;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown validation error';
+      addDebugLog(`❌ Validation failed: ${errorMessage}`);
+      console.error('Error validating visit pass:', error);
       return null;
     }
   };
 
-  const simulateQRScan = () => {
-    // Simulate scanning a QR code for demo purposes
-    const demoQRCode = `VMS-demo-${Date.now()}`;
-    setQrCode(demoQRCode);
+  const simulateQRScan = async () => {
+    try {
+      // First, let's get a real visit request from the database for demo
+      const { data: visitRequests, error } = await supabase
+        .from('visit_requests')
+        .select('id, qr_code')
+        .eq('status', 'approved')
+        .not('qr_code', 'is', null)
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching visit requests:', error);
+        // Fallback to a properly formatted demo QR code
+        const demoQRCode = `VMS-550e8400-e29b-41d4-a716-446655440000-${Date.now()}`;
+        setQrCode(demoQRCode);
+        addDebugLog(`🎭 Using fallback demo QR: ${demoQRCode}`);
+        return;
+      }
+
+      if (visitRequests && visitRequests.length > 0 && visitRequests[0].qr_code) {
+        // Use real QR code from database
+        setQrCode(visitRequests[0].qr_code);
+        addDebugLog(`🎭 Using real QR from database: ${visitRequests[0].qr_code}`);
+      } else {
+        // Create a properly formatted demo QR code with valid UUID format
+        const demoQRCode = `VMS-550e8400-e29b-41d4-a716-446655440000-${Date.now()}`;
+        setQrCode(demoQRCode);
+        addDebugLog(`🎭 Using formatted demo QR: ${demoQRCode}`);
+      }
+    } catch (error) {
+      console.error('Error in simulateQRScan:', error);
+      // Fallback to properly formatted demo
+      const demoQRCode = `VMS-550e8400-e29b-41d4-a716-446655440000-${Date.now()}`;
+      setQrCode(demoQRCode);
+      addDebugLog(`🎭 Error fallback demo QR: ${demoQRCode}`);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -507,14 +810,13 @@ export default function ScanQRCode() {
             <CardContent className="space-y-4">
               <div className="relative">
                 <div className="border-2 border-dashed border-muted rounded-lg overflow-hidden bg-black">
-                  {cameraActive ? (
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-64 object-cover"
-                    />
-                  ) : (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className={`w-full h-64 object-cover ${!cameraActive ? 'hidden' : ''}`}
+                  />
+                  {!cameraActive && (
                     <div className="h-64 flex items-center justify-center">
                       <div className="text-center">
                         <QrCode className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -569,7 +871,7 @@ export default function ScanQRCode() {
                     id="qr_code"
                     value={qrCode}
                     onChange={(e) => setQrCode(e.target.value)}
-                    placeholder="Scan or enter QR code"
+                    placeholder="Scan or enter QR code (e.g., VMS-550e8400-e29b-41d4-a716-446655440100-1737550800000)"
                     className="flex-1"
                     aria-label="QR code input field"
                   />
@@ -581,6 +883,11 @@ export default function ScanQRCode() {
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Test QR codes: VMS-550e8400-e29b-41d4-a716-446655440100-1737550800000 (approved), 
+                  VMS-550e8400-e29b-41d4-a716-446655440102-1737551400000 (checked-in)<br/>
+                  Error test: INVALID-QR-CODE (invalid format), VMS-expired-visit-123 (expired)
+                </p>
               </div>
 
               <div className="flex space-x-2">

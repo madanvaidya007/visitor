@@ -35,11 +35,15 @@ import {
   ExternalLink,
   QrCode,
   MessageSquare,
-  Bell
+  Bell,
+  Camera
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { PhotoCapture } from '@/components/visitor/PhotoCapture';
+import { zoneSecurityService } from '@/services/zoneSecurityService';
+import { SecurityZone } from '@/types/zoneTypes';
 
 interface Visitor {
   id: string;
@@ -80,6 +84,7 @@ interface InvitationForm {
   notes: string;
   send_notification: boolean;
   auto_approve: boolean;
+  zone_id: string;
 }
 
 interface NewVisitorForm {
@@ -87,6 +92,7 @@ interface NewVisitorForm {
   email: string;
   phone: string;
   company: string;
+  photo_url?: string;
 }
 
 export default function InviteVisitor() {
@@ -95,12 +101,14 @@ export default function InviteVisitor() {
   
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [recentInvitations, setRecentInvitations] = useState<VisitRequest[]>([]);
+  const [zones, setZones] = useState<SecurityZone[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showNewVisitorDialog, setShowNewVisitorDialog] = useState(false);
   const [showInvitationPreview, setShowInvitationPreview] = useState(false);
+  const [showPhotoCapture, setShowPhotoCapture] = useState(false);
   
   const [invitationForm, setInvitationForm] = useState<InvitationForm>({
     visitor_id: '',
@@ -114,14 +122,16 @@ export default function InviteVisitor() {
     end_time: '10:00',
     notes: '',
     send_notification: true,
-    auto_approve: false
+    auto_approve: false,
+    zone_id: ''
   });
 
   const [newVisitorForm, setNewVisitorForm] = useState<NewVisitorForm>({
     full_name: '',
     email: '',
     phone: '',
-    company: ''
+    company: '',
+    photo_url: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -142,7 +152,10 @@ export default function InviteVisitor() {
 
   const fetchData = async () => {
     try {
-      await fetchRecentInvitations();
+      await Promise.all([
+        fetchRecentInvitations(),
+        fetchZones()
+      ]);
     } catch (error: any) {
       toast({
         title: 'Error loading data',
@@ -150,6 +163,41 @@ export default function InviteVisitor() {
         variant: 'destructive'
       });
     }
+  };
+
+  const fetchZones = async () => {
+    try {
+      const zonesData = await zoneSecurityService.getZones();
+      setZones(zonesData);
+    } catch (error: any) {
+      console.error('Error fetching zones:', error);
+      toast({
+        title: 'Error loading zones',
+        description: 'Failed to load security zones',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Handle photo capture
+  const handlePhotoCapture = (photoData: string, faceData?: any) => {
+    console.log('📸 Photo captured for visitor:', newVisitorForm.full_name);
+    console.log('🔍 Face data processed:', faceData ? 'Yes' : 'No');
+    
+    setNewVisitorForm(prev => ({ ...prev, photo_url: photoData }));
+    setShowPhotoCapture(false);
+    
+    toast({
+      title: 'Photo captured successfully',
+      description: faceData 
+        ? 'Photo captured and face recognition profile created.'
+        : 'Photo captured. Face recognition data will be processed.'
+    });
+  };
+
+  // Cancel photo capture
+  const cancelPhotoCapture = () => {
+    setShowPhotoCapture(false);
   };
 
   const searchVisitors = async () => {
@@ -271,18 +319,19 @@ export default function InviteVisitor() {
           email: newVisitorForm.email,
           phone: newVisitorForm.phone,
           company: newVisitorForm.company,
+          photo_url: newVisitorForm.photo_url,
           created_at: new Date().toISOString(),
           is_active: true
         };
 
         selectVisitor(newVisitor);
         setShowNewVisitorDialog(false);
-        setNewVisitorForm({ full_name: '', email: '', phone: '', company: '' });
+        setNewVisitorForm({ full_name: '', email: '', phone: '', company: '', photo_url: '' });
         setErrors({});
 
         toast({
           title: 'Visitor created successfully',
-          description: 'New visitor has been added to the system.'
+          description: 'New visitor has been added to the system with face recognition profile.'
         });
       }
     } catch (error: any) {
@@ -305,6 +354,7 @@ export default function InviteVisitor() {
         newErrors.visitor = 'Please select a visitor or enter email';
       }
       if (!invitationForm.purpose) newErrors.purpose = 'Purpose is required';
+      if (!invitationForm.zone_id) newErrors.zone_id = 'Destination zone is required';
       if (!invitationForm.visit_date) newErrors.visit_date = 'Visit date is required';
       if (!invitationForm.start_time) newErrors.start_time = 'Start time is required';
       if (!invitationForm.end_time) newErrors.end_time = 'End time is required';
@@ -323,7 +373,8 @@ export default function InviteVisitor() {
         start_time: invitationForm.start_time,
         end_time: invitationForm.end_time,
         notes: invitationForm.notes,
-        status: (invitationForm.auto_approve ? 'approved' : 'pending') as 'pending' | 'approved'
+        status: (invitationForm.auto_approve ? 'approved' : 'pending') as 'pending' | 'approved',
+        zone_id: invitationForm.zone_id
       };
 
       const { data, error } = await supabase
@@ -370,7 +421,8 @@ export default function InviteVisitor() {
         end_time: '10:00',
         notes: '',
         send_notification: true,
-        auto_approve: false
+        auto_approve: false,
+        zone_id: ''
       });
       setSelectedVisitor(null);
       setErrors({});
@@ -560,6 +612,35 @@ export default function InviteVisitor() {
                     aria-invalid={!!errors.purpose}
                   />
                   {errors.purpose && <p id="purpose-error" className="text-sm text-red-500">{errors.purpose}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="zone">Destination Zone *</Label>
+                  <Select
+                    value={invitationForm.zone_id}
+                    onValueChange={(value) => {
+                      setInvitationForm(prev => ({ ...prev, zone_id: value }));
+                      if (errors.zone_id) setErrors(prev => ({ ...prev, zone_id: '' }));
+                    }}
+                  >
+                    <SelectTrigger className={errors.zone_id ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select destination zone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {zones.map((zone) => (
+                        <SelectItem key={zone.id} value={zone.id}>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            <span>{zone.name}</span>
+                            {zone.description && (
+                              <span className="text-xs text-muted-foreground">- {zone.description}</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.zone_id && <p className="text-sm text-red-500">{errors.zone_id}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -821,12 +902,52 @@ export default function InviteVisitor() {
               />
             </div>
 
+            {/* Photo Capture Section */}
+            <div className="space-y-3">
+              <Label>Visitor Photo (Face Recognition)</Label>
+              {newVisitorForm.photo_url ? (
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-green-50">
+                  <img 
+                    src={newVisitorForm.photo_url} 
+                    alt="Captured photo" 
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium text-green-800">Photo Captured</p>
+                    <p className="text-sm text-green-600">Face recognition profile ready</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPhotoCapture(true)}
+                  >
+                    <Camera className="h-4 w-4 mr-1" />
+                    Retake
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowPhotoCapture(true)}
+                  className="w-full"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Capture Photo for Face Recognition
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Capturing a photo enables automatic visitor identification and enhances security.
+              </p>
+            </div>
+
             <div className="flex gap-2 pt-4">
               <Button
                 variant="outline"
                 onClick={() => {
                   setShowNewVisitorDialog(false);
-                  setNewVisitorForm({ full_name: '', email: '', phone: '', company: '' });
+                  setNewVisitorForm({ full_name: '', email: '', phone: '', company: '', photo_url: '' });
                   setErrors({});
                 }}
                 className="flex-1"
@@ -847,6 +968,25 @@ export default function InviteVisitor() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Capture Dialog */}
+      <Dialog open={showPhotoCapture} onOpenChange={setShowPhotoCapture}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Capture Visitor Photo</DialogTitle>
+            <DialogDescription>
+              Take a photo for {newVisitorForm.full_name || 'the visitor'} to enable face recognition
+            </DialogDescription>
+          </DialogHeader>
+          
+          <PhotoCapture
+            onPhotoCapture={handlePhotoCapture}
+            onCancel={cancelPhotoCapture}
+            visitorName={newVisitorForm.full_name}
+            visitorEmail={newVisitorForm.email}
+          />
         </DialogContent>
       </Dialog>
     </div>

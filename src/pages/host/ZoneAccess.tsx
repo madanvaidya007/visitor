@@ -54,7 +54,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useRealtimeZones } from '@/hooks/useRealtimeZones';
+import { useRealtimeZoneData } from '@/hooks/useRealtimeZoneData';
 
 interface Zone {
   id: string;
@@ -122,20 +122,13 @@ export default function ZoneAccess() {
   const { toast } = useToast();
   
   // Real-time zone data hook
-  const {
-    zoneOccupancy,
-    entryLogs,
-    alerts,
-    activeSessions,
-    statistics,
-    loading: realtimeLoading,
-    logZoneAccess,
-    resolveAlert,
-    getZoneOccupancy,
-    getZoneActiveSessions,
-    refreshStatistics,
-    refetch: refetchRealtimeData
-  } = useRealtimeZones();
+  const realtimeData = useRealtimeZoneData({
+    enableZones: true,
+    enableOccupancy: true,
+    enableLogs: true,
+    enableAlerts: true,
+    enableStatistics: true
+  });
   
   const [zones, setZones] = useState<Zone[]>([]);
   const [zoneAccesses, setZoneAccesses] = useState<ZoneAccess[]>([]);
@@ -157,10 +150,10 @@ export default function ZoneAccess() {
 
   // Use real-time statistics instead of local state
   const stats = {
-    total_zones: statistics.total_zones,
-    active_zones: statistics.active_zones,
-    restricted_zones: statistics.restricted_zones,
-    current_visitors: statistics.current_visitors
+    total_zones: realtimeData.statistics?.total_zones || 0,
+    active_zones: realtimeData.statistics?.active_zones || 0,
+    restricted_zones: realtimeData.statistics?.restricted_zones || 0,
+    current_visitors: realtimeData.statistics?.current_visitors || 0
   };
 
   useEffect(() => {
@@ -175,8 +168,7 @@ export default function ZoneAccess() {
       await Promise.all([
         fetchZones(),
         fetchZoneAccesses(),
-        fetchVisitRequests(),
-        refetchRealtimeData() // Refresh real-time data
+        fetchVisitRequests()
       ]);
     } catch (error: any) {
       toast({
@@ -190,6 +182,20 @@ export default function ZoneAccess() {
   };
 
   const fetchZones = async () => {
+    // Use real-time zones data if available, otherwise fetch from database
+    if (realtimeData.zones && realtimeData.zones.length > 0) {
+      const zonesWithOccupancy = realtimeData.zones.map(zone => {
+        const occupancy = realtimeData.occupancy.find(occ => occ.zone_id === zone.id);
+        return {
+          ...zone,
+          current_occupancy: occupancy?.current_count || 0
+        };
+      });
+      setZones(zonesWithOccupancy);
+      return;
+    }
+
+    // Fallback to database fetch
     const { data, error } = await supabase
       .from('zones')
       .select('*')
@@ -199,7 +205,7 @@ export default function ZoneAccess() {
     
     // Merge zones with real-time occupancy data
     const zonesWithOccupancy = (data || []).map(zone => {
-      const occupancy = getZoneOccupancy(zone.id);
+      const occupancy = realtimeData.occupancy.find(occ => occ.zone_id === zone.id);
       return {
         ...zone,
         current_occupancy: occupancy?.current_count || 0

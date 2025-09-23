@@ -1,30 +1,203 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import CryptoJS from 'crypto-js';
+
+// Enhanced QR Code data structure
+interface QRCodeData {
+  version: string;
+  visitRequestId: string;
+  timestamp: number;
+  expiresAt: number;
+  checksum: string;
+  securityLevel: 'standard' | 'high';
+}
+
+interface ScanResult {
+  success: boolean;
+  visitRequest?: any;
+  error?: string;
+  message?: string;
+}
 
 export function useQRCode() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const generateQRCode = async (visitRequestId: string): Promise<string | null> => {
+  // Generate secure checksum for QR code validation
+  const generateChecksum = (data: string): string => {
+    return CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex).substring(0, 8);
+  };
+
+  // Create QR code data structure
+  const createQRCodeData = (visitRequestId: string, securityLevel: 'standard' | 'high' = 'standard'): QRCodeData => {
+    const timestamp = Date.now();
+    const expirationHours = securityLevel === 'high' ? 2 : 24; // High security expires in 2 hours
+    const expiresAt = timestamp + (expirationHours * 60 * 60 * 1000);
+    
+    const baseData = `${visitRequestId}-${timestamp}-${expiresAt}`;
+    const checksum = generateChecksum(baseData);
+
+    return {
+      version: '2.0',
+      visitRequestId,
+      timestamp,
+      expiresAt,
+      checksum,
+      securityLevel
+    };
+  };
+
+  // Encode QR data to string format
+  const encodeQRData = (qrData: QRCodeData): string => {
+    return `VMS-v${qrData.version}-${qrData.visitRequestId}-${qrData.timestamp}-${qrData.expiresAt}-${qrData.checksum}-${qrData.securityLevel}`;
+  };
+
+  // Decode QR string to data structure
+  const decodeQRData = (qrString: string): QRCodeData | null => {
+    try {
+      // Handle QR_ format (QR_{visitRequestId}_{timestamp})
+      if (qrString.startsWith('QR_')) {
+        const parts = qrString.split('_');
+        if (parts.length >= 3) {
+          const visitRequestId = parts[1];
+          const timestamp = parseInt(parts[2]);
+          
+          return {
+            version: '1.0',
+            visitRequestId,
+            timestamp,
+            expiresAt: timestamp + (24 * 60 * 60 * 1000), // 24 hours from creation
+            checksum: '',
+            securityLevel: 'standard'
+          };
+        }
+      }
+
+      const parts = qrString.split('-');
+      
+      // Handle legacy format (VMS-{visitRequestId}-{timestamp})
+      if (parts.length === 3 && parts[0] === 'VMS') {
+        return {
+          version: '1.0',
+          visitRequestId: parts[1],
+          timestamp: parseInt(parts[2]),
+          expiresAt: parseInt(parts[2]) + (24 * 60 * 60 * 1000), // 24 hours from creation
+          checksum: '',
+          securityLevel: 'standard'
+        };
+      }
+
+      // Handle UUID legacy format
+      if (parts.length === 7 && parts[0] === 'VMS') {
+        const visitRequestId = parts.slice(1, 6).join('-');
+        return {
+          version: '1.0',
+          visitRequestId,
+          timestamp: parseInt(parts[6]),
+          expiresAt: parseInt(parts[6]) + (24 * 60 * 60 * 1000),
+          checksum: '',
+          securityLevel: 'standard'
+        };
+      }
+
+      // Handle new format (VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel})
+      if (parts.length >= 7 && parts[0] === 'VMS' && parts[1].startsWith('v')) {
+        const version = parts[1].substring(1); // Remove 'v' prefix
+        
+        if (version === '2.0') {
+          // For UUID visit request IDs, reconstruct them
+          let visitRequestId: string;
+          let timestampIndex: number;
+          
+          if (parts.length === 7) {
+            // Simple ID format
+            visitRequestId = parts[2];
+            timestampIndex = 3;
+          } else if (parts.length === 11) {
+            // UUID format: VMS-v2.0-{uuid-part1}-{uuid-part2}-{uuid-part3}-{uuid-part4}-{uuid-part5}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
+            visitRequestId = parts.slice(2, 7).join('-');
+            timestampIndex = 7;
+          } else {
+            throw new Error('Invalid QR code format');
+          }
+
+          return {
+            version,
+            visitRequestId,
+            timestamp: parseInt(parts[timestampIndex]),
+            expiresAt: parseInt(parts[timestampIndex + 1]),
+            checksum: parts[timestampIndex + 2],
+            securityLevel: parts[timestampIndex + 3] as 'standard' | 'high'
+          };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error decoding QR data:', error);
+      return null;
+    }
+  };
+
+  // Validate QR code integrity and expiration
+  const validateQRCode = (qrData: QRCodeData): { valid: boolean; reason?: string } => {
+    const now = Date.now();
+
+    // Check expiration
+    if (now > qrData.expiresAt) {
+      return { valid: false, reason: 'QR code has expired' };
+    }
+
+    // Validate checksum for v2.0 codes
+    if (qrData.version === '2.0' && qrData.checksum) {
+      const baseData = `${qrData.visitRequestId}-${qrData.timestamp}-${qrData.expiresAt}`;
+      const expectedChecksum = generateChecksum(baseData);
+      
+      if (qrData.checksum !== expectedChecksum) {
+        return { valid: false, reason: 'QR code integrity check failed' };
+      }
+    }
+
+    // Check if QR code is too old (beyond reasonable time window)
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+    if (now - qrData.timestamp > maxAge) {
+      return { valid: false, reason: 'QR code is too old' };
+    }
+
+    return { valid: true };
+  };
+
+  const generateQRCode = async (visitRequestId: string, securityLevel: 'standard' | 'high' = 'standard'): Promise<string | null> => {
     setLoading(true);
     try {
-      // Create a unique QR code string with visit request ID and timestamp
-      const qrCodeData = `VMS-${visitRequestId}-${Date.now()}`;
+      // Create enhanced QR code data
+      const qrData = createQRCodeData(visitRequestId, securityLevel);
+      const qrCodeString = encodeQRData(qrData);
       
       // Update the visit request with the QR code
       const { error } = await supabase
         .from('visit_requests')
-        .update({ qr_code: qrCodeData })
+        .update({ 
+          qr_code: qrCodeString,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', visitRequestId);
 
       if (error) throw error;
 
-      return qrCodeData;
+      toast({
+        title: 'QR Code Generated',
+        description: `Digital pass created with ${securityLevel} security level`,
+        variant: 'default'
+      });
+
+      return qrCodeString;
     } catch (error: any) {
+      console.error('QR generation error:', error);
       toast({
         title: 'Failed to generate QR code',
-        description: error.message,
+        description: error.message || 'An unexpected error occurred',
         variant: 'destructive'
       });
       return null;
@@ -33,74 +206,162 @@ export function useQRCode() {
     }
   };
 
-  const scanQRCode = async (qrCode: string, action: 'check_in' | 'check_out', scannedBy?: string) => {
+  const scanQRCode = async (qrCodeString: string, action: 'check_in' | 'check_out', scannedBy?: string): Promise<ScanResult> => {
     setLoading(true);
     try {
-      // Extract visit request ID from QR code
-      const parts = qrCode.split('-');
-      if (parts.length < 2 || parts[0] !== 'VMS') {
-        throw new Error('Invalid QR code format');
+      // Decode QR code
+      const qrData = decodeQRData(qrCodeString);
+      if (!qrData) {
+        throw new Error('Invalid QR code format. Please ensure you are scanning a valid digital visit pass.');
       }
-      
-      const visitRequestId = parts[1];
 
-      // Verify the visit request exists and is approved
+      // Validate QR code
+      const validation = validateQRCode(qrData);
+      if (!validation.valid) {
+        throw new Error(validation.reason || 'QR code validation failed');
+      }
+
+      // Fetch visit request with enhanced data
       const { data: visitRequest, error: fetchError } = await supabase
         .from('visit_requests')
-        .select('*')
-        .eq('id', visitRequestId)
-        .eq('qr_code', qrCode)
+        .select(`
+          *,
+          visitor:profiles!visit_requests_visitor_id_fkey(full_name, email, phone),
+          host:profiles!visit_requests_host_id_fkey(full_name, email, company)
+        `)
+        .eq('id', qrData.visitRequestId)
         .single();
 
-      if (fetchError) throw fetchError;
-      if (!visitRequest) throw new Error('Invalid or expired QR code');
+      if (fetchError) {
+        console.error('Database fetch error:', fetchError);
+        throw new Error('Failed to verify visit request. Please contact support.');
+      }
 
-      if (visitRequest.status !== 'approved' && visitRequest.status !== 'checked_in') {
-        throw new Error('Visit request is not approved for entry');
+      if (!visitRequest) {
+        throw new Error('Visit request not found. This QR code may be invalid or deleted.');
+      }
+
+      // Verify QR code matches the one in database (for v2.0 codes)
+      if (qrData.version === '2.0' && visitRequest.qr_code !== qrCodeString) {
+        throw new Error('QR code mismatch. This may be a counterfeit or outdated code.');
+      }
+
+      // Enhanced status validation
+      const validStatuses = action === 'check_in' 
+        ? ['approved'] 
+        : ['checked_in'];
+
+      if (!validStatuses.includes(visitRequest.status)) {
+        const statusMessage = action === 'check_in' 
+          ? 'Visit must be approved before check-in'
+          : 'Visitor must be checked in before check-out';
+        throw new Error(`${statusMessage}. Current status: ${visitRequest.status}`);
+      }
+
+      // Time window validation
+      const visitDate = new Date(visitRequest.visit_date);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const visitDay = new Date(visitDate.getFullYear(), visitDate.getMonth(), visitDate.getDate());
+
+      if (visitDay.getTime() !== today.getTime()) {
+        throw new Error(`This visit pass is only valid for ${visitDate.toLocaleDateString()}. Today is ${now.toLocaleDateString()}.`);
       }
 
       // Update visit status
       const newStatus = action === 'check_in' ? 'checked_in' : 'checked_out';
+      
       const { error: updateError } = await supabase
         .from('visit_requests')
-        .update({ status: newStatus })
-        .eq('id', visitRequestId);
+        .update({ 
+          status: newStatus
+        })
+        .eq('id', qrData.visitRequestId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Status update error:', updateError);
+        throw new Error('Failed to update visit status. Please try again.');
+      }
 
-      // Log the action
+      // Enhanced logging with more details
       const { error: logError } = await supabase
         .from('visit_logs')
         .insert({
-          visit_request_id: visitRequestId,
+          visit_request_id: qrData.visitRequestId,
           action: action,
           scanned_by: scannedBy,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          qr_version: qrData.version,
+          security_level: qrData.securityLevel,
+          scanner_notes: `QR v${qrData.version} scan successful`
         });
 
-      if (logError) throw logError;
+      if (logError) {
+        console.error('Logging error:', logError);
+        // Don't fail the operation for logging errors
+      }
+
+      const successMessage = action === 'check_in' 
+        ? `${visitRequest.visitor.full_name} successfully checked in`
+        : `${visitRequest.visitor.full_name} successfully checked out`;
 
       toast({
-        title: `Successfully ${action.replace('_', ' ')}`,
-        description: `Visitor has been ${action.replace('_', ' ')}ed.`
+        title: `${action.replace('_', ' ')} Successful`,
+        description: successMessage,
+        variant: 'default'
       });
 
-      return { success: true, visitRequest };
+      return { 
+        success: true, 
+        visitRequest,
+        message: successMessage
+      };
+
     } catch (error: any) {
+      console.error('QR scan error:', error);
+      const errorMessage = error.message || 'An unexpected error occurred during scanning';
+      
       toast({
-        title: `${action.replace('_', ' ')} failed`,
-        description: error.message,
+        title: `${action.replace('_', ' ')} Failed`,
+        description: errorMessage,
         variant: 'destructive'
       });
-      return { success: false, error: error.message };
+
+      return { 
+        success: false, 
+        error: errorMessage,
+        message: `${action.replace('_', ' ')} failed`
+      };
     } finally {
       setLoading(false);
     }
   };
 
+  // Regenerate QR code with new security level
+  const regenerateQRCode = async (visitRequestId: string, newSecurityLevel: 'standard' | 'high' = 'standard'): Promise<string | null> => {
+    return generateQRCode(visitRequestId, newSecurityLevel);
+  };
+
+  // Check QR code validity without scanning
+  const validateQRCodeString = (qrCodeString: string): { valid: boolean; data?: QRCodeData; reason?: string } => {
+    const qrData = decodeQRData(qrCodeString);
+    if (!qrData) {
+      return { valid: false, reason: 'Invalid QR code format' };
+    }
+
+    const validation = validateQRCode(qrData);
+    return { valid: validation.valid, data: qrData, reason: validation.reason };
+  };
+
+  // Alias for backward compatibility
+  const createQRCode = generateQRCode;
+
   return {
     generateQRCode,
+    createQRCode,
     scanQRCode,
+    regenerateQRCode,
+    validateQRCodeString,
     loading
   };
 }

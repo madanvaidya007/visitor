@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useQRCode } from '@/hooks/useQRCode';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';  
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Users, 
@@ -35,6 +36,7 @@ interface VisitRequest {
 
 export function HostDashboard() {
   const { profile } = useAuth();
+  const { generateQRCode } = useQRCode();
   const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -79,12 +81,9 @@ export function HostDashboard() {
       
       // If approved, generate QR code
       if (action === 'approved') {
-        const { error: qrError } = await supabase.rpc('generate_qr_code', {
-          visit_request_id: requestId
-        });
-        
-        if (qrError) {
-          console.error('Error generating QR code:', qrError);
+        const qrCodeData = await generateQRCode(requestId);
+        if (!qrCodeData) {
+          console.error('Failed to generate QR code for visit request:', requestId);
         }
       }
 

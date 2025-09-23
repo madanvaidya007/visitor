@@ -3,23 +3,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DocumentVerificationTab } from '../admin/DocumentVerificationTab';
-import { UserManagementTab } from '../admin/UserManagementTab';
-import { ZoneManagementTab } from '../admin/ZoneManagementTab';
-import { ReportsTab } from '../admin/ReportsTab';
+import {
+  Users,
+  MapPin,
+  BarChart3,
   Settings,
-  AlertTriangle,
-  Building,
   Clock,
   UserCheck,
   Calendar,
   FileText,
-  Database
+  Shield
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { UserManagementTab } from '@/components/admin/UserManagementTab';
 import { ZoneManagementTab } from '@/components/admin/ZoneManagementTab';
+import { GuardManagementTab } from '@/components/admin/GuardManagementTab';
 import { ReportsTab } from '@/components/admin/ReportsTab';
 import { SystemSettingsTab } from '@/components/admin/SystemSettingsTab';
 
@@ -192,7 +191,7 @@ export function AdminDashboard() {
 
       {/* Management Tabs */}
       <Tabs defaultValue="users" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="users">
             <Users className="mr-2 h-4 w-4" />
             Users
@@ -200,6 +199,10 @@ export function AdminDashboard() {
           <TabsTrigger value="zones">
             <MapPin className="mr-2 h-4 w-4" />
             Zones
+          </TabsTrigger>
+          <TabsTrigger value="guards">
+            <Shield className="mr-2 h-4 w-4" />
+            Guards
           </TabsTrigger>
           <TabsTrigger value="reports">
             <BarChart3 className="mr-2 h-4 w-4" />
@@ -217,6 +220,10 @@ export function AdminDashboard() {
 
         <TabsContent value="zones">
           <ZoneManagementTab onZoneUpdate={fetchSystemStats} />
+        </TabsContent>
+
+        <TabsContent value="guards">
+          <GuardManagementTab />
         </TabsContent>
 
         <TabsContent value="reports">

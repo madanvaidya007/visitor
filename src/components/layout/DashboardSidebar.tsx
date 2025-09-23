@@ -63,6 +63,7 @@ export function DashboardSidebar({ userRole }: DashboardSidebarProps) {
           ...commonItems,
           { href: '/users', icon: Users, label: 'User Management' },
           { href: '/zones', icon: MapPin, label: 'Zone Management' },
+          { href: '/face-recognition', icon: Eye, label: 'Face Recognition' },
           { href: '/reports', icon: BarChart3, label: 'Reports' },
           { href: '/settings', icon: Settings, label: 'System Settings' },
           { href: '/blacklist', icon: AlertTriangle, label: 'Blacklist' },

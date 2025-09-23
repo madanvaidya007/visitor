@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { QrCode, Download, Share, Clock, MapPin, User, Building } from 'lucide-react';
+import { QrCode, Download, Share, Clock, MapPin, User, Building, RefreshCw } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,7 +42,7 @@ export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogP
 
   const { profile } = useAuth();
   const { toast } = useToast();
-  const { generateQRCode: createQRCode } = useQRCode();
+  const { generateQRCode: createQRCode, regenerateQRCode } = useQRCode();
 
   useEffect(() => {
     if (open) {
@@ -87,43 +87,56 @@ export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogP
     }
   };
 
-  const generateQRCode = async () => {
+  const generateQRCode = async (forceRegenerate = false) => {
     if (!selectedVisit || !profile) return;
 
     setLoading(true);
     try {
-      // Generate QR code if it doesn't exist
-    let qrCodeData = selectedVisit.qr_code;
-    
-    if (!qrCodeData) {
-      // Generate QR code and update database
-      qrCodeData = await createQRCode(selectedVisit.id);
+      let qrCodeData = selectedVisit.qr_code;
       
-      if (qrCodeData) {
-        setSelectedVisit(prev => prev ? { ...prev, qr_code: qrCodeData } : null);
-      }
-    }
-
-      // Generate QR code image
-    if (qrCodeData) {
-      const qrImageUrl = await QRCodeLib.toDataURL(qrCodeData, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#1e293b',
-          light: '#ffffff'
+      // Generate new QR code if it doesn't exist or force regeneration
+      if (!qrCodeData || forceRegenerate) {
+        if (forceRegenerate && qrCodeData) {
+          // Use regenerate function for existing QR codes
+          qrCodeData = await regenerateQRCode(selectedVisit.id);
+        } else {
+          // Generate new QR code
+          qrCodeData = await createQRCode(selectedVisit.id);
         }
-      });
+        
+        if (qrCodeData) {
+          setSelectedVisit(prev => prev ? { ...prev, qr_code: qrCodeData } : null);
+        }
+      }
 
-      setQrCodeUrl(qrImageUrl);
-    } else {
-      setQrCodeUrl('');
-      toast({
-        title: 'Error generating QR code',
-        description: 'Failed to generate QR code data',
-        variant: 'destructive'
-      });
-    }
+      // Generate QR code image with enhanced styling
+      if (qrCodeData) {
+        const qrImageUrl = await QRCodeLib.toDataURL(qrCodeData, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#1e293b',
+            light: '#ffffff'
+          },
+          errorCorrectionLevel: 'M'
+        });
+
+        setQrCodeUrl(qrImageUrl);
+        
+        if (forceRegenerate) {
+          toast({
+            title: 'QR Code Regenerated',
+            description: 'A new secure QR code has been generated for your visit.',
+          });
+        }
+      } else {
+        setQrCodeUrl('');
+        toast({
+          title: 'Error generating QR code',
+          description: 'Failed to generate QR code data',
+          variant: 'destructive'
+        });
+      }
     } catch (error: any) {
       toast({
         title: 'Error generating QR code',
@@ -308,24 +321,36 @@ export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogP
 
                   {/* Action Buttons */}
                   {qrCodeUrl && (
-                    <div className="flex gap-3">
+                    <div className="space-y-3">
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={downloadQRCode}
+                          className="flex-1"
+                          aria-label={`Download QR code for ${selectedVisit.purpose} visit`}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={shareQRCode}
+                          className="flex-1"
+                          aria-label={`Share QR code for ${selectedVisit.purpose} visit`}
+                        >
+                          <Share className="h-4 w-4 mr-2" />
+                          Share
+                        </Button>
+                      </div>
                       <Button
                         variant="outline"
-                        onClick={downloadQRCode}
-                        className="flex-1"
-                        aria-label={`Download QR code for ${selectedVisit.purpose} visit`}
+                        onClick={() => generateQRCode(true)}
+                        className="w-full"
+                        disabled={loading}
+                        aria-label={`Regenerate QR code for ${selectedVisit.purpose} visit`}
                       >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={shareQRCode}
-                        className="flex-1"
-                        aria-label={`Share QR code for ${selectedVisit.purpose} visit`}
-                      >
-                        <Share className="h-4 w-4 mr-2" />
-                        Share
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        Regenerate QR Code
                       </Button>
                     </div>
                   )}

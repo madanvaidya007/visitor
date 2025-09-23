@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { QrCode, Download, Share2, MapPin, Clock, User, Building, Shield, CheckCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useToast } from '@/hooks/use-toast';
+import { useQRCode } from '@/hooks/useQRCode';
 
 interface VisitRequest {
   id: string;
@@ -42,6 +43,7 @@ export function DigitalPassDialog({
   const [loading, setLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
+  const { validateQRCodeString } = useQRCode();
 
   useEffect(() => {
     if (open && visitRequest?.qr_code) {
@@ -54,13 +56,25 @@ export function DigitalPassDialog({
     
     setLoading(true);
     try {
+      // Validate QR code before generating image
+      const validation = validateQRCodeString(visitRequest.qr_code);
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid QR Code',
+          description: validation.reason || 'QR code validation failed',
+          variant: 'destructive'
+        });
+        return;
+      }
+
       const qrDataUrl = await QRCode.toDataURL(visitRequest.qr_code, {
         width: 200,
         margin: 2,
         color: {
           dark: '#000000',
           light: '#FFFFFF'
-        }
+        },
+        errorCorrectionLevel: 'M'
       });
       setQrCodeUrl(qrDataUrl);
     } catch (error) {

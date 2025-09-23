@@ -4,16 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EnhancedQRScanner } from '../security/EnhancedQRScanner';
-import { QRScannerTab } from '../security/QRScannerTab';
-import { ZoneMonitoringTab } from '../security/ZoneMonitoringTab';
-import { SecurityAlertsTab } from '../security/SecurityAlertsTab';
+import {
   Users,
   MapPin,
   Clock,
   Scan,
   Radio,
   UserCheck,
-  Building
+  Building,
+  AlertTriangle,
+  QrCode,
+  Eye
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +22,7 @@ import { QRScannerTab } from '@/components/security/QRScannerTab';
 import { ZoneMonitoringTab } from '@/components/security/ZoneMonitoringTab';
 import { SecurityAlertsTab } from '@/components/security/SecurityAlertsTab';
 import { VisitorTrackingTab } from '@/components/security/VisitorTrackingTab';
+import { FaceRecognitionDashboard } from '@/components/FaceRecognition/FaceRecognitionDashboard';
 
 interface SecurityStats {
   active_visitors: number;
@@ -299,7 +301,7 @@ export function SecurityDashboard() {
 
       {/* Security Operations */}
       <Tabs defaultValue="scanner" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="scanner">
             <QrCode className="mr-2 h-4 w-4" />
             QR Scanner
@@ -307,6 +309,10 @@ export function SecurityDashboard() {
           <TabsTrigger value="monitoring">
             <Eye className="mr-2 h-4 w-4" />
             Zone Monitor
+          </TabsTrigger>
+          <TabsTrigger value="face-recognition">
+            <UserCheck className="mr-2 h-4 w-4" />
+            Face Recognition
           </TabsTrigger>
           <TabsTrigger value="alerts">
             <AlertTriangle className="mr-2 h-4 w-4" />
@@ -327,6 +333,10 @@ export function SecurityDashboard() {
             zoneOccupancy={zoneOccupancy}
             onUpdate={fetchZoneOccupancy}
           />
+        </TabsContent>
+
+        <TabsContent value="face-recognition">
+          <FaceRecognitionDashboard />
         </TabsContent>
 
         <TabsContent value="alerts">
