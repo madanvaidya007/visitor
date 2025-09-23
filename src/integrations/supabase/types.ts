@@ -201,6 +201,8 @@ export type Database = {
       }
       visit_requests: {
         Row: {
+          checked_in_at: string | null
+          checked_out_at: string | null
           created_at: string | null
           documents_uploaded: boolean | null
           end_time: string
@@ -217,6 +219,8 @@ export type Database = {
           visitor_id: string
         }
         Insert: {
+          checked_in_at?: string | null
+          checked_out_at?: string | null
           created_at?: string | null
           documents_uploaded?: boolean | null
           end_time: string
@@ -233,6 +237,8 @@ export type Database = {
           visitor_id: string
         }
         Update: {
+          checked_in_at?: string | null
+          checked_out_at?: string | null
           created_at?: string | null
           documents_uploaded?: boolean | null
           end_time?: string
