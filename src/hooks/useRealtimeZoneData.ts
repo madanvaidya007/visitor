@@ -71,7 +71,7 @@ export function useRealtimeZoneData(options: UseRealtimeZoneDataOptions = {}) {
         accessLogs,
         visitorRequests,
         securityAlerts,
-        occupancy,
+        occupancyData,
         statistics
       ] = await Promise.all([
         zoneSecurityService.getZones(),
@@ -80,9 +80,24 @@ export function useRealtimeZoneData(options: UseRealtimeZoneDataOptions = {}) {
         enableLogs ? zoneSecurityService.getAccessLogs({ zone_id: zoneId, limit: 50 }) : [],
         zoneSecurityService.getVisitorZoneRequests({ zone_id: zoneId }),
         enableAlerts ? zoneSecurityService.getSecurityAlerts({ zone_id: zoneId, limit: 20 }) : [],
-        enableOccupancy ? zoneSecurityService.getZoneOccupancy(zoneId) : [],
+        enableOccupancy ? (zoneId ? zoneSecurityService.getZoneOccupancy(zoneId) : []) : [],
         enableStatistics ? zoneSecurityService.getZoneStatistics(zoneId) : null
       ]);
+
+      // Handle occupancy data - ensure it's always an array
+      let occupancy: ZoneOccupancy[] = [];
+      if (enableOccupancy) {
+        if (zoneId && occupancyData) {
+          occupancy = [occupancyData as ZoneOccupancy];
+        } else if (!zoneId) {
+          // Get occupancy for all zones
+          const occupancyPromises = zones.map(zone => 
+            zoneSecurityService.getZoneOccupancy(zone.id).catch(() => null)
+          );
+          const occupancyResults = await Promise.all(occupancyPromises);
+          occupancy = occupancyResults.filter(Boolean) as ZoneOccupancy[];
+        }
+      }
 
       setData({
         zones,
@@ -108,13 +123,13 @@ export function useRealtimeZoneData(options: UseRealtimeZoneDataOptions = {}) {
 
     // Security Zones subscription
     const zonesChannel = supabase
-      .channel('security_zones_changes')
+      .channel('zones_changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'security_zones',
+          table: 'zones',
           ...(zoneId && { filter: `id=eq.${zoneId}` })
         },
         (payload) => {
@@ -295,13 +310,13 @@ export function useRealtimeZoneData(options: UseRealtimeZoneDataOptions = {}) {
     // Security Alerts subscription (if enabled)
     if (enableAlerts) {
       const securityAlertsChannel = supabase
-        .channel('zone_security_alerts_changes')
+        .channel('zone_alerts_changes')
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
-            table: 'zone_security_alerts',
+            table: 'zone_alerts',
             ...(zoneId && { filter: `zone_id=eq.${zoneId}` })
           },
           (payload) => {
@@ -362,8 +377,19 @@ export function useRealtimeZoneData(options: UseRealtimeZoneDataOptions = {}) {
           break;
         case 'occupancy':
           if (enableOccupancy) {
-            const occupancy = await zoneSecurityService.getZoneOccupancy(zoneId);
-            setData(prev => ({ ...prev, occupancy }));
+            if (zoneId) {
+              const occupancy = await zoneSecurityService.getZoneOccupancy(zoneId);
+              setData(prev => ({ ...prev, occupancy: [occupancy] }));
+            } else {
+              // If no specific zone, get occupancy for all zones
+              const zones = await zoneSecurityService.getZones();
+              const occupancyPromises = zones.map(zone => 
+                zoneSecurityService.getZoneOccupancy(zone.id).catch(() => null)
+              );
+              const occupancyResults = await Promise.all(occupancyPromises);
+              const occupancy = occupancyResults.filter(Boolean) as ZoneOccupancy[];
+              setData(prev => ({ ...prev, occupancy }));
+            }
           }
           break;
         case 'statistics':

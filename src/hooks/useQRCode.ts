@@ -116,10 +116,30 @@ export function useQRCode() {
             timestampIndex = 3;
           } else if (parts.length === 11) {
             // UUID format: VMS-v2.0-{uuid-part1}-{uuid-part2}-{uuid-part3}-{uuid-part4}-{uuid-part5}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
+            // UUID is in parts 2-6 (5 parts total), timestamp starts at index 7
             visitRequestId = parts.slice(2, 7).join('-');
             timestampIndex = 7;
           } else {
-            throw new Error('Invalid QR code format');
+            // Handle other UUID formats - try to find timestamp by looking for numeric values
+            console.log('QR code parts:', parts);
+            
+            // Look for the first numeric timestamp (should be around index 7-8)
+            let foundTimestampIndex = -1;
+            for (let i = 2; i < parts.length - 3; i++) {
+              const part = parts[i];
+              if (/^\d{13}$/.test(part)) { // 13-digit timestamp
+                foundTimestampIndex = i;
+                break;
+              }
+            }
+            
+            if (foundTimestampIndex === -1) {
+              throw new Error('Could not find timestamp in QR code');
+            }
+            
+            // UUID is everything between index 2 and the timestamp
+            visitRequestId = parts.slice(2, foundTimestampIndex).join('-');
+            timestampIndex = foundTimestampIndex;
           }
 
           return {
@@ -135,7 +155,7 @@ export function useQRCode() {
 
       return null;
     } catch (error) {
-      console.error('Error decoding QR data:', error);
+      console.error('Invalid QR code format:', error);
       return null;
     }
   };
@@ -194,7 +214,7 @@ export function useQRCode() {
 
       return qrCodeString;
     } catch (error: any) {
-      console.error('QR generation error:', error);
+      console.error('QR generation failed:', error);
       toast({
         title: 'Failed to generate QR code',
         description: error.message || 'An unexpected error occurred',
@@ -233,7 +253,7 @@ export function useQRCode() {
         .single();
 
       if (fetchError) {
-        console.error('Database fetch error:', fetchError);
+        console.error('Database fetch failed during visit verification:', fetchError);
         throw new Error('Failed to verify visit request. Please contact support.');
       }
 
@@ -279,7 +299,7 @@ export function useQRCode() {
         .eq('id', qrData.visitRequestId);
 
       if (updateError) {
-        console.error('Status update error:', updateError);
+        console.error('Status update failed during QR processing:', updateError);
         throw new Error('Failed to update visit status. Please try again.');
       }
 
@@ -297,8 +317,67 @@ export function useQRCode() {
         });
 
       if (logError) {
-        console.error('Logging error:', logError);
+        console.error('Logging failed during QR processing (operation continues):', logError);
         // Don't fail the operation for logging errors
+      }
+
+      // Send host notification for check-in/check-out
+      try {
+        const { sendHostNotification } = await import('./useEmailService');
+        
+        const notificationType = action === 'check_in' ? 'visitor_checkin' : 'visitor_checkout';
+        
+        await sendHostNotification(visitRequest.host.email, {
+          type: notificationType,
+          visitorName: visitRequest.visitor.full_name,
+          hostName: visitRequest.host.full_name,
+          company: visitRequest.host.company || 'Company',
+          visitDate: visitRequest.visit_date,
+          startTime: visitRequest.start_time,
+          endTime: visitRequest.end_time,
+          purpose: visitRequest.purpose,
+          zone: 'Main Building',
+          message: action === 'check_in' 
+            ? `${visitRequest.visitor.full_name} has checked in for their visit.`
+            : `${visitRequest.visitor.full_name} has checked out.`,
+        });
+      } catch (emailError) {
+        console.error('Email notification failed during QR processing (operation continues):', emailError);
+        // Don't fail the check-in/out if email fails
+      }
+
+      // Fetch authorized zones for this visit request
+      let authorizedZones = [];
+      if (action === 'check_in') {
+        try {
+          const { data: zoneData, error: zoneError } = await supabase
+            .from('zone_access')
+            .select(`
+              id,
+              zone_id,
+              granted_at,
+              zone:zones(
+                id,
+                name,
+                description,
+                location,
+                floor,
+                building,
+                access_level,
+                requires_escort,
+                is_active
+              )
+            `)
+            .eq('visit_request_id', qrData.visitRequestId)
+            .eq('zone.is_active', true);
+
+          if (!zoneError && zoneData) {
+            authorizedZones = zoneData;
+          }
+        } catch (zoneError) {
+          console.error('Zone fetching failed during QR processing (operation continues):', zoneError);
+          // Don't fail the check-in if zone fetching fails
+        }
       }
 
       const successMessage = action === 'check_in' 
@@ -314,11 +393,12 @@ export function useQRCode() {
       return { 
         success: true, 
         visitRequest,
+        authorizedZones,
         message: successMessage
       };
 
     } catch (error: any) {
-      console.error('QR scan error:', error);
+      console.error('QR scan operation failed:', error);
       const errorMessage = error.message || 'An unexpected error occurred during scanning';
       
       toast({

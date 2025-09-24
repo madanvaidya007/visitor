@@ -107,17 +107,116 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480 } 
-      });
+      // Check HTTPS requirement for mobile devices
+      const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile && !isSecureContext) {
+        console.error('❌ HTTPS required for camera access on mobile devices');
+        setError('Camera access requires HTTPS on mobile devices. Please access this page via HTTPS.');
+        return;
+      }
+
+      // Check if camera is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('❌ Camera API not supported');
+        setError('Camera not supported in this browser.');
+        return;
+      }
+
+      // Mobile-optimized camera constraints with fallbacks
+      const getVideoConstraints = () => {
+        if (isMobile) {
+          return [
+            // Primary: High quality for mobile front camera
+            {
+              facingMode: 'user',
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 }
+            },
+            // Fallback 1: Medium quality
+            {
+              facingMode: 'user',
+              width: { ideal: 480, max: 640 },
+              height: { ideal: 360, max: 480 }
+            },
+            // Fallback 2: Basic quality
+            {
+              facingMode: 'user',
+              width: { ideal: 320, max: 480 },
+              height: { ideal: 240, max: 360 }
+            },
+            // Fallback 3: Any available camera
+            {
+              facingMode: { ideal: 'user' }
+            },
+            // Final fallback: Any camera
+            true
+          ];
+        } else {
+          // Desktop constraints
+          return [{ 
+            video: { width: 640, height: 480 } 
+          }];
+        }
+      };
+
+      let stream = null;
+      const constraints = getVideoConstraints();
+      
+      // Try each constraint set until one works
+      for (let i = 0; i < constraints.length; i++) {
+        try {
+          console.log(`📷 Trying camera constraint set ${i + 1}/${constraints.length}...`);
+          
+          stream = await navigator.mediaDevices.getUserMedia(
+            isMobile ? { video: constraints[i] } : constraints[i]
+          );
+          
+          console.log(`✅ Camera stream obtained with constraint set ${i + 1}`);
+          break;
+        } catch (constraintError) {
+          console.log(`❌ Constraint set ${i + 1} failed:`, constraintError.message);
+          
+          if (i === constraints.length - 1) {
+            throw constraintError; // Re-throw the last error
+          }
+        }
+      }
+
+      if (!stream) {
+        throw new Error('Failed to obtain camera stream with any constraints');
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setIsCameraActive(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to start camera:', err);
-      setError('Failed to access camera');
+      
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+      
+      let errorMessage = 'Failed to access camera. ';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage += isMobile 
+          ? 'On mobile: Tap the camera icon in your browser\'s address bar and select "Allow".' 
+          : 'Please allow camera permissions and try again.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage += 'No camera found on this device.';
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage += isMobile && !isSecureContext
+          ? 'Camera requires HTTPS on mobile devices.'
+          : 'Camera not supported in this browser.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage += 'Camera is already in use by another application.';
+      } else {
+        errorMessage += err.message || 'Unknown camera error.';
+      }
+      
+      setError(errorMessage);
     }
   };
 

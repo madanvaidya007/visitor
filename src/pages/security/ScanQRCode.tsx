@@ -19,8 +19,13 @@ import {
   MapPin,
   Calendar,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  AlertCircle,
+  ArrowLeft,
+  Square,
+  X
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useQRCode } from '@/hooks/useQRCode';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -51,7 +56,6 @@ interface ScanResult {
   success: boolean;
   message: string;
   visitor?: VisitorInfo;
-  action?: 'check_in' | 'check_out';
   error?: string;
 }
 
@@ -61,8 +65,11 @@ export default function ScanQRCode() {
   const [isScanning, setIsScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [recentScans, setRecentScans] = useState<any[]>([]);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const [componentReady, setComponentReady] = useState(false);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+  const [userInteractionRequired, setUserInteractionRequired] = useState(false);
+  const [permissionRequested, setPermissionRequested] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -71,10 +78,14 @@ export default function ScanQRCode() {
   const { scanQRCode, validateQRCodeString, loading } = useQRCode();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const navigate = useNavigate();
 
+  // Debug logging function
   const addDebugLog = (message: string) => {
-    console.log(message);
-    setDebugInfo(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${message}`]);
+    const timestamp = new Date().toLocaleTimeString();
+    const logMessage = `[${timestamp}] ${message}`;
+    console.log(logMessage);
+    setDebugLogs(prev => [...prev.slice(-9), logMessage]); // Keep last 10 logs
   };
 
   // Ensure component is ready after mount
@@ -82,13 +93,10 @@ export default function ScanQRCode() {
     const checkComponentReady = () => {
       if (canvasRef.current) {
         setComponentReady(true);
-        addDebugLog('✅ Component fully mounted and ready');
       } else {
-        addDebugLog('⏳ Waiting for component to mount...');
         setTimeout(checkComponentReady, 100);
       }
     };
-    
     checkComponentReady();
   }, []);
 
@@ -150,35 +158,289 @@ export default function ScanQRCode() {
       });
       return;
     }
-
-    addDebugLog('✅ Video element reference found');
+    
+    // Mark that permission has been requested
+    setPermissionRequested(true);
+    setUserInteractionRequired(false);
     
     try {
-      // Check if camera is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        const errorMsg = '❌ Camera API not supported';
+      // Enhanced mobile browser detection
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(navigator.userAgent);
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isChrome = /chrome/i.test(userAgent) && !/edg/i.test(userAgent);
+      const isSafari = /safari/i.test(userAgent) && !/chrome/i.test(userAgent);
+      const isFirefox = /firefox/i.test(userAgent);
+      const isEdge = /edg/i.test(userAgent);
+      
+      // Enhanced security context check
+      const isSecureContext = window.isSecureContext || 
+                             location.protocol === 'https:' || 
+                             location.hostname === 'localhost' || 
+                             location.hostname === '127.0.0.1' ||
+                             location.hostname.endsWith('.local');
+      
+      console.log('🔍 Browser detection:', {
+        isMobile,
+        isIOS,
+        isAndroid,
+        isChrome,
+        isSafari,
+        isFirefox,
+        isEdge,
+        isSecureContext,
+        userAgent: navigator.userAgent
+      });
+      addDebugLog(`🔍 Browser: ${isMobile ? 'Mobile' : 'Desktop'}, ${isIOS ? 'iOS' : isAndroid ? 'Android' : 'Other'}, Secure: ${isSecureContext}`);
+      
+      // Check HTTPS requirement for mobile devices
+      if (isMobile && !isSecureContext) {
+        const errorMsg = '❌ HTTPS required for camera access on mobile devices';
         console.error(errorMsg);
         addDebugLog(errorMsg);
-        throw new Error('Camera not supported in this browser');
+        
+        let httpsGuidance = 'Camera access requires HTTPS on mobile devices. ';
+        if (location.hostname !== 'localhost' && !location.hostname.endsWith('.local')) {
+          httpsGuidance += 'Please access this page via HTTPS (https://) or use a desktop browser.';
+        } else {
+          httpsGuidance += 'Try accessing via your local network IP with HTTPS, or use a desktop browser.';
+        }
+        
+        toast({
+          title: "HTTPS Required",
+          description: httpsGuidance,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Enhanced camera API support check
+      if (!navigator.mediaDevices) {
+        const errorMsg = '❌ MediaDevices API not supported';
+        console.error(errorMsg);
+        addDebugLog(errorMsg);
+        
+        let browserGuidance = 'Your browser does not support camera access. ';
+        if (isMobile) {
+          if (isIOS) {
+            browserGuidance += 'Please use Safari 11+ or Chrome 69+ on iOS.';
+          } else if (isAndroid) {
+            browserGuidance += 'Please use Chrome 53+ or Firefox 36+ on Android.';
+          } else {
+            browserGuidance += 'Please use a modern mobile browser.';
+          }
+        } else {
+          browserGuidance += 'Please use a modern browser like Chrome, Firefox, or Safari.';
+        }
+        
+        throw new Error(browserGuidance);
+      }
+      
+      if (!navigator.mediaDevices.getUserMedia) {
+        const errorMsg = '❌ getUserMedia not supported';
+        console.error(errorMsg);
+        addDebugLog(errorMsg);
+        throw new Error('Camera access not supported in this browser version');
+      }
+
+      // Check for permissions API support and query current permission state
+      let permissionState = 'unknown';
+      if ('permissions' in navigator) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          permissionState = permission.state;
+          console.log('📋 Camera permission state:', permissionState);
+          addDebugLog(`📋 Camera permission: ${permissionState}`);
+          
+          if (permissionState === 'denied') {
+            const errorMsg = '❌ Camera permission permanently denied';
+            console.error(errorMsg);
+            addDebugLog(errorMsg);
+            
+            let permissionGuidance = 'Camera permission has been denied. ';
+            if (isMobile) {
+              if (isIOS && isSafari) {
+                permissionGuidance += 'Go to Settings > Safari > Camera and enable camera access, then refresh this page.';
+              } else if (isAndroid && isChrome) {
+                permissionGuidance += 'Tap the camera icon in the address bar, select "Allow", then refresh this page.';
+              } else {
+                permissionGuidance += 'Check your browser settings to allow camera access for this site, then refresh this page.';
+              }
+            } else {
+              permissionGuidance += 'Click the camera icon in your browser\'s address bar and select "Allow", then refresh this page.';
+            }
+            
+            toast({
+              title: "Camera Permission Denied",
+              description: permissionGuidance,
+              variant: "destructive",
+            });
+            return;
+          }
+        } catch (permError) {
+          console.log('⚠️ Permission query failed:', permError);
+          addDebugLog('⚠️ Permission query not supported');
+        }
       }
 
       console.log('✅ Camera API supported, requesting permissions...');
       addDebugLog('✅ Camera API supported, requesting permissions...');
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+      // Show user interaction prompt for mobile devices if needed
+      if (isMobile && permissionState === 'prompt') {
+        console.log('📱 Mobile device detected, showing permission guidance');
+        addDebugLog('📱 Showing mobile permission guidance');
+        
+        let interactionGuidance = 'Camera permission is required. ';
+        if (isIOS && isSafari) {
+          interactionGuidance += 'When prompted, tap "Allow" to grant camera access.';
+        } else if (isAndroid && isChrome) {
+          interactionGuidance += 'When prompted, tap "Allow" to grant camera access.';
+        } else {
+          interactionGuidance += 'Please allow camera access when prompted by your browser.';
         }
-      });
+        
+        toast({
+          title: "Camera Permission Required",
+          description: interactionGuidance,
+          variant: "default",
+        });
+        
+        // Small delay to let user see the message
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Enhanced mobile-optimized camera constraints with more fallbacks
+      const getVideoConstraints = () => {
+        if (isMobile) {
+          const constraints = [
+            // Primary: High quality for mobile with rear camera
+            {
+              facingMode: 'environment',
+              width: { ideal: 1280, max: 1920 },
+              height: { ideal: 720, max: 1080 },
+              frameRate: { ideal: 30, max: 60 }
+            },
+            // Fallback 1: Medium quality with rear camera
+            {
+              facingMode: 'environment',
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 },
+              frameRate: { ideal: 15, max: 30 }
+            },
+            // Fallback 2: Basic quality with rear camera
+            {
+              facingMode: 'environment',
+              width: { ideal: 320, max: 640 },
+              height: { ideal: 240, max: 480 }
+            },
+            // Fallback 3: Any rear camera
+            {
+              facingMode: { ideal: 'environment' }
+            },
+            // Fallback 4: Front camera if rear not available
+            {
+              facingMode: 'user',
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 }
+            },
+            // Fallback 5: Any front camera
+            {
+              facingMode: { ideal: 'user' }
+            },
+            // Final fallback: Any camera with basic constraints
+            {
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            },
+            // Ultimate fallback: Any camera
+            true
+          ];
+          
+          // iOS Safari specific adjustments
+          if (isIOS && isSafari) {
+            // iOS Safari has issues with high frame rates
+            constraints.forEach(constraint => {
+              if (typeof constraint === 'object' && constraint.frameRate) {
+                constraint.frameRate = { ideal: 15, max: 30 };
+              }
+            });
+          }
+          
+          return constraints;
+        } else {
+          // Desktop constraints with more fallbacks
+          return [
+            {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            {
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            },
+            true
+          ];
+        }
+      };
+
+      let stream = null;
+      const constraints = getVideoConstraints();
+      let lastError = null;
+      
+      // Try each constraint set until one works
+      for (let i = 0; i < constraints.length; i++) {
+        try {
+          console.log(`🎥 Trying camera constraint set ${i + 1}/${constraints.length}...`);
+          addDebugLog(`🎥 Trying camera constraint set ${i + 1}/${constraints.length}...`);
+          
+          // Add a small delay between attempts to help with mobile browsers
+          if (i > 0 && isMobile) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: constraints[i],
+            audio: false // Explicitly disable audio to avoid additional permissions
+          });
+          
+          console.log(`✅ Camera stream obtained with constraint set ${i + 1}`);
+          addDebugLog(`✅ Camera stream obtained with constraint set ${i + 1}`);
+          
+          // Log stream details for debugging
+          const tracks = stream.getVideoTracks();
+          if (tracks.length > 0) {
+            const settings = tracks[0].getSettings();
+            console.log('📹 Camera settings:', settings);
+            addDebugLog(`📹 Camera: ${settings.width}x${settings.height}, facing: ${settings.facingMode || 'unknown'}`);
+          }
+          
+          break;
+        } catch (constraintError) {
+          lastError = constraintError;
+          console.log(`❌ Constraint set ${i + 1} failed:`, constraintError.message);
+          addDebugLog(`❌ Constraint set ${i + 1} failed: ${constraintError.message}`);
+          
+          // Don't throw immediately, try next constraint
+          if (i === constraints.length - 1) {
+            throw constraintError; // Re-throw the last error
+          }
+        }
+      }
+
+      if (!stream) {
+        throw lastError || new Error('Failed to obtain camera stream with any constraints');
+      }
       
       console.log('✅ Camera stream obtained:', stream);
       addDebugLog('✅ Camera stream obtained');
       
       // Double-check video ref before using it
       if (!videoRef.current) {
-        addDebugLog('❌ Video ref became null after getting stream');
+        // Clean up stream if video element is gone
+        stream.getTracks().forEach(track => track.stop());
         throw new Error('Video element reference lost');
       }
 
@@ -189,108 +451,191 @@ export default function ScanQRCode() {
       console.log('✅ Video element configured');
       addDebugLog('✅ Video element configured');
       
-      // Wait for video to be ready before starting detection
-      videoElement.onloadedmetadata = () => {
-        console.log('✅ Video metadata loaded, starting detection');
-        addDebugLog('✅ Video metadata loaded, starting detection');
-        setCameraActive(true);
-        cameraActiveRef.current = true;
-        setIsScanning(true);
-        
-        // Wait a bit more for video to be fully ready
-        setTimeout(() => {
-          if (videoRef.current && videoRef.current.readyState >= 2) {
-            addDebugLog('✅ Video ready, starting QR detection');
-            detectQRCode();
-          } else {
-            addDebugLog('⏳ Video still loading, waiting more...');
-            setTimeout(() => {
-              if (videoRef.current && videoRef.current.readyState >= 2) {
-                addDebugLog('✅ Video ready after wait, starting QR detection');
-                detectQRCode();
-              } else {
-                addDebugLog('❌ Video failed to load properly');
-              }
-            }, 1000);
-          }
-        }, 200);
-      };
+      // Enhanced video loading with better mobile support
+      const setupVideoHandlers = () => {
+        videoElement.onloadedmetadata = () => {
+          console.log('✅ Video metadata loaded, starting detection');
+          addDebugLog('✅ Video metadata loaded, starting detection');
+          setCameraActive(true);
+          cameraActiveRef.current = true;
+          setIsScanning(true);
+          
+          // Progressive readiness check with longer delays for mobile
+          const checkVideoReady = (attempt = 1) => {
+            if (videoRef.current && videoRef.current.readyState >= 2) {
+              console.log(`✅ Video ready after ${attempt} attempts`);
+              addDebugLog(`✅ Video ready after ${attempt} attempts`);
+              detectQRCode();
+            } else if (attempt < 5) {
+              const delay = isMobile ? 500 * attempt : 200 * attempt;
+              setTimeout(() => checkVideoReady(attempt + 1), delay);
+            } else {
+              console.error('❌ Video failed to become ready after 5 attempts');
+              addDebugLog('❌ Video failed to become ready after 5 attempts');
+            }
+          };
+          
+          // Initial delay before checking readiness
+          setTimeout(() => checkVideoReady(), isMobile ? 300 : 100);
+        };
 
-      // Add error handler for video element
-      videoElement.onerror = (error) => {
-        console.error('❌ Video element error:', error);
-        addDebugLog(`❌ Video element error: ${error}`);
+        videoElement.onerror = (error) => {
+          console.error('Video element error:', error);
+          addDebugLog('❌ Video element error occurred');
+        };
+        
+        videoElement.onabort = () => {
+          console.log('Video loading aborted');
+          addDebugLog('⚠️ Video loading aborted');
+        };
+        
+        videoElement.onstalled = () => {
+          console.log('Video loading stalled');
+          addDebugLog('⚠️ Video loading stalled');
+        };
       };
       
-      // Force a small delay to ensure video element is ready
-      setTimeout(() => {
-        if (videoRef.current && videoRef.current.readyState === 0) {
-          addDebugLog('⏳ Video still loading, waiting...');
-        }
-      }, 100);
+      setupVideoHandlers();
+      
+      // Force video to start playing (important for mobile)
+      try {
+        await videoElement.play();
+        console.log('✅ Video playback started');
+        addDebugLog('✅ Video playback started');
+      } catch (playError) {
+        console.log('⚠️ Video autoplay failed (this is normal):', playError.message);
+        addDebugLog('⚠️ Video autoplay failed (normal behavior)');
+      }
+      
     } catch (error) {
-      console.error('❌ Camera access error:', error);
+      console.error('Camera access error:', error);
+      addDebugLog('❌ Camera access failed');
+      
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(navigator.userAgent);
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+      
       let errorMessage = 'Unable to access camera. ';
+      let mobileGuidance = '';
       
       if (error instanceof Error) {
         console.log('Error name:', error.name);
         console.log('Error message:', error.message);
-        addDebugLog(`❌ Camera access failed: ${error.message}`);
+        addDebugLog(`Error details: ${error.name} - ${error.message}`);
         
         if (error.name === 'NotAllowedError') {
-          errorMessage += 'Please allow camera permissions and try again.';
-          addDebugLog('🚫 Permission denied by user');
+          errorMessage += 'Camera permission was denied. ';
+          if (isMobile) {
+            if (isIOS) {
+              mobileGuidance = 'On iOS: 1) Go to Settings > Safari > Camera and enable access, 2) Or tap the "aA" icon in Safari\'s address bar and select "Allow Camera", 3) Refresh this page and try again.';
+            } else if (isAndroid) {
+              mobileGuidance = 'On Android: 1) Tap the camera icon in your browser\'s address bar, 2) Select "Allow" for camera access, 3) Refresh the page and try again. If that doesn\'t work, check your browser\'s site settings.';
+            } else {
+              mobileGuidance = 'On mobile: Check your browser settings to allow camera access for this site, then refresh the page and try again.';
+            }
+          } else {
+            mobileGuidance = 'Please click "Allow" when prompted for camera access and try again.';
+          }
+          
+          // Set flag to require user interaction
+          setUserInteractionRequired(true);
         } else if (error.name === 'NotFoundError') {
-          errorMessage += 'No camera found on this device.';
-          addDebugLog('📷 No camera device found');
+          errorMessage += 'No camera found on this device. ';
+          if (isMobile) {
+            mobileGuidance = 'Make sure your device has a camera and no other apps are using it. Try closing other camera apps and refreshing this page.';
+          }
         } else if (error.name === 'NotSupportedError') {
-          errorMessage += 'Camera not supported in this browser.';
-          addDebugLog('🚫 Camera not supported');
+          errorMessage += 'Camera not supported in this browser. ';
+          if (isMobile) {
+            if (!isSecureContext) {
+              mobileGuidance = 'Camera access requires HTTPS on mobile devices. Please use HTTPS or try a different browser like Chrome or Safari.';
+            } else if (isIOS) {
+              mobileGuidance = 'Please use Safari 11+ or Chrome 69+ on iOS devices.';
+            } else if (isAndroid) {
+              mobileGuidance = 'Please use Chrome 53+, Firefox 36+, or Samsung Internet on Android devices.';
+            } else {
+              mobileGuidance = 'Try using Chrome, Safari, or Firefox on your mobile device.';
+            }
+          } else {
+            mobileGuidance = 'Try using a modern browser like Chrome, Firefox, or Safari.';
+          }
         } else if (error.name === 'NotReadableError') {
-          errorMessage += 'Camera is already in use by another application.';
-          addDebugLog('🔒 Camera already in use');
+          errorMessage += 'Camera is already in use by another application. ';
+          if (isMobile) {
+            mobileGuidance = 'Close other camera apps and try again. You may need to restart your browser or device.';
+          } else {
+            mobileGuidance = 'Close other applications using the camera and try again.';
+          }
         } else if (error.name === 'OverconstrainedError') {
-          errorMessage += 'Camera constraints cannot be satisfied.';
-          addDebugLog('⚙️ Camera constraints not supported');
+          errorMessage += 'Camera constraints cannot be satisfied. ';
+          if (isMobile) {
+            mobileGuidance = 'Your device camera may not support the required settings. This should be automatically handled - please try again or restart your browser.';
+          }
+        } else if (error.name === 'SecurityError') {
+          errorMessage += 'Security error accessing camera. ';
+          if (isMobile && !isSecureContext) {
+            mobileGuidance = 'Camera access requires HTTPS on mobile devices. Please access this page via HTTPS.';
+          } else {
+            mobileGuidance = 'Please check your browser security settings and try again.';
+          }
+        } else if (error.name === 'AbortError') {
+          errorMessage += 'Camera access was aborted. ';
+          mobileGuidance = 'Please try again. If the problem persists, restart your browser.';
         } else {
-          errorMessage += error.message;
-          addDebugLog(`🔍 Unknown error: ${error.message}`);
+          errorMessage += `Unexpected error: ${error.message}. `;
+          if (isMobile) {
+            mobileGuidance = 'Try refreshing the page, restarting your browser, or using a different browser like Chrome or Safari.';
+          } else {
+            mobileGuidance = 'Please try refreshing the page or using a different browser.';
+          }
         }
+      } else {
+        errorMessage += 'Unknown error occurred. ';
+        mobileGuidance = 'Please try refreshing the page or using a different browser.';
       }
-      
+
+      // Add network-specific guidance for host network issues
+      if (isMobile && location.hostname !== 'localhost' && !location.hostname.endsWith('.local')) {
+        mobileGuidance += '\n\nFor host network access: Ensure you\'re using HTTPS and the correct local IP address. Some mobile browsers may block camera access over local networks.';
+      }
+
       toast({
-        title: 'Camera Error',
-        description: errorMessage,
-        variant: 'destructive'
+        title: "Camera Access Failed",
+        description: errorMessage + mobileGuidance,
+        variant: "destructive",
       });
     }
   };
 
   const stopCamera = () => {
+    console.log('🛑 Stopping camera...');
+    addDebugLog('🛑 Stopping camera...');
+    
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('🛑 Track stopped:', track.kind);
+      });
       streamRef.current = null;
     }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
     setCameraActive(false);
     cameraActiveRef.current = false;
     setIsScanning(false);
+    setUserInteractionRequired(false);
+    
+    console.log('✅ Camera stopped successfully');
+    addDebugLog('✅ Camera stopped successfully');
   };
 
   const detectQRCode = () => {
-    // Enhanced ref checking with more detailed logging
-    if (!videoRef.current) {
-      addDebugLog('❌ Detection stopped - videoRef is null');
-      return;
-    }
-    
-    if (!canvasRef.current) {
-      addDebugLog('❌ Detection stopped - canvasRef is null');
-      return;
-    }
-    
-    // Use ref instead of state to avoid timing issues
-    if (!cameraActiveRef.current) {
-      addDebugLog('❌ Detection stopped - camera not active (ref check)');
+    if (!cameraActiveRef.current || !videoRef.current || !canvasRef.current) {
       return;
     }
 
@@ -298,462 +643,98 @@ export default function ScanQRCode() {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
-    if (!context) {
-      addDebugLog('❌ Canvas context not available');
+    if (!context || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      setTimeout(detectQRCode, 100);
       return;
     }
 
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      addDebugLog(`⏳ Video not ready (readyState: ${video.readyState}), retrying...`);
-      setTimeout(() => detectQRCode(), 100);
-      return;
-    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Ensure video has valid dimensions
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      addDebugLog(`⏳ Video dimensions not ready (${video.videoWidth}x${video.videoHeight}), retrying...`);
-      setTimeout(() => detectQRCode(), 100);
-      return;
-    }
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-    try {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Add debug info about image data
-      addDebugLog(`🔍 Scanning frame: ${canvas.width}x${canvas.height}, data length: ${imageData.data.length}`);
-      
-      // Check if jsQR is available
-      if (typeof jsQR !== 'function') {
-        addDebugLog('❌ jsQR library not loaded properly');
-        return;
-      }
-      
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      });
-      
-      if (code) {
-        addDebugLog(`✅ QR Code detected: ${code.data.substring(0, 50)}...`);
-        setQrCode(code.data);
-        stopCamera();
-        
-        // Automatically process the detected QR code
-        handleQRCodeDetected(code.data);
-      } else {
-        // Continue scanning with a slight delay to prevent excessive CPU usage
-        if (cameraActiveRef.current && videoRef.current && canvasRef.current) {
-          setTimeout(() => detectQRCode(), 100);
-        }
-      }
-    } catch (error) {
-      addDebugLog(`❌ QR detection error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      console.error('QR Detection Error:', error);
-      if (isScanning && videoRef.current && canvasRef.current) {
-        setTimeout(() => detectQRCode(), 100);
-      }
+    if (code) {
+      console.log('QR Code detected:', code.data);
+      addDebugLog(`QR Code detected: ${code.data}`);
+      handleQRCodeDetected(code.data);
+    } else {
+      setTimeout(detectQRCode, 100);
     }
   };
 
-  const handleQRCodeDetected = async (qrCodeData: string) => {
+  const handleQRCodeDetected = async (qrData: string) => {
+    console.log('Processing QR code:', qrData);
+    addDebugLog(`Processing QR code: ${qrData}`);
+    
+    setQrCode(qrData);
+    
+    // Determine action based on QR code format or user selection
+    // For now, default to check_in
+    await handleScan(qrData, 'check_in');
+  };
+
+  const handleScan = async (qrData: string, action: 'check_in' | 'check_out') => {
     try {
-      addDebugLog('🔍 Processing detected QR code...');
+      console.log(`Attempting ${action} with QR:`, qrData);
+      addDebugLog(`Attempting ${action} with QR: ${qrData}`);
       
-      // Pre-validate QR code format and expiration
-      const validation = validateQRCodeString(qrCodeData);
-      if (!validation.valid) {
-        setScanResult({
-          success: false,
-          message: 'Invalid QR Code',
-          error: validation.reason || 'QR code validation failed'
-        });
-        addDebugLog(`❌ QR validation failed: ${validation.reason}`);
-        return;
-      }
-
-      addDebugLog(`✅ QR code pre-validation passed (v${validation.data?.version})`);
+      const result = await scanQRCode(qrData, action);
       
-      // Get visitor information with enhanced validation
-      const visitorInfo = await getVisitorInfo(qrCodeData);
+      console.log('Scan result:', result);
+      addDebugLog(`Scan result: ${result.success ? 'Success' : 'Failed'}`);
       
-      if (!visitorInfo) {
-        setScanResult({
-          success: false,
-          message: 'Invalid Digital Visit Pass',
-          error: 'QR code not found, expired, or not valid for current time'
-        });
-        addDebugLog('❌ Invalid visit pass detected');
-        return;
-      }
-
-      addDebugLog(`✅ Valid visit pass for ${visitorInfo.visitor.full_name}`);
-
-      // Determine action based on current status
-      const action = visitorInfo.status === 'checked_in' ? 'check_out' : 'check_in';
-      addDebugLog(`📋 Action determined: ${action}`);
-      
-      // Perform the scan action with enhanced logging
-      const result = await scanQRCode(qrCodeData, action, profile?.id);
+      setScanResult(result);
       
       if (result.success) {
-        addDebugLog(`✅ ${action} completed successfully`);
-        setScanResult({
-          success: true,
-          message: `${action === 'check_in' ? 'Check-in' : 'Check-out'} completed successfully`,
-          visitor: visitorInfo,
-          action: action
-        });
-
-        await fetchRecentScans();
+        fetchRecentScans(); // Refresh recent scans
         toast({
-          title: 'Success',
-          description: `${visitorInfo.visitor.full_name} has been ${action.replace('_', ' ')}ed successfully`,
+          title: "Success",
+          description: result.message,
+          variant: "default",
         });
       } else {
-        addDebugLog(`❌ ${action} failed: ${result.error}`);
-        setScanResult({
-          success: false,
-          message: `${action.replace('_', ' ')} failed`,
-          error: result.error || 'Operation failed'
-        });
-        
         toast({
-          title: 'Error',
-          description: result.error || 'Operation failed',
-          variant: 'destructive'
+          title: "Scan Failed",
+          description: result.error || result.message,
+          variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error processing QR code:', error);
-      addDebugLog(`❌ Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Scan error:', error);
+      addDebugLog(`Scan error: ${error}`);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setScanResult({
         success: false,
-        message: 'Error processing digital visit pass',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Scan failed',
+        error: errorMessage
       });
       
       toast({
-        title: 'Processing Error',
-        description: 'Failed to process the digital visit pass. Please try again.',
-        variant: 'destructive'
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
       });
     }
   };
 
-  const handleManualScan = async (action: 'check_in' | 'check_out') => {
-    if (!qrCode.trim()) {
-      toast({
-        title: 'Digital Visit Pass Required',
-        description: 'Please enter or scan a digital visit pass QR code.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    try {
-      addDebugLog(`🔍 Processing manual scan for ${action}...`);
-      
-      // Pre-validate QR code format and expiration
-      const validation = validateQRCodeString(qrCode);
-      if (!validation.valid) {
-        setScanResult({
-          success: false,
-          message: 'Invalid QR Code',
-          error: validation.reason || 'QR code validation failed'
-        });
-        addDebugLog(`❌ Manual scan QR validation failed: ${validation.reason}`);
-        toast({
-          title: 'Invalid QR Code',
-          description: validation.reason || 'QR code validation failed',
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      addDebugLog(`✅ Manual scan QR code pre-validation passed (v${validation.data?.version})`);
-      
-      // First, get visitor information with enhanced validation
-      const visitorInfo = await getVisitorInfo(qrCode);
-      
-      if (!visitorInfo) {
-        setScanResult({
-          success: false,
-          message: 'Invalid Digital Visit Pass',
-          error: 'QR code not found, expired, or not valid for current time'
-        });
-        addDebugLog('❌ Invalid visit pass in manual scan');
-        return;
-      }
-
-      addDebugLog(`✅ Valid visit pass for ${visitorInfo.visitor.full_name}`);
-
-      // Validate action against current status
-      if (action === 'check_in' && visitorInfo.status === 'checked_in') {
-        setScanResult({
-          success: false,
-          message: 'Already Checked In',
-          error: 'This visitor is already checked in. Use check-out instead.'
-        });
-        addDebugLog('❌ Visitor already checked in');
-        return;
-      }
-
-      if (action === 'check_out' && visitorInfo.status !== 'checked_in') {
-        setScanResult({
-          success: false,
-          message: 'Not Checked In',
-          error: 'This visitor is not currently checked in. Use check-in instead.'
-        });
-        addDebugLog('❌ Visitor not checked in');
-        return;
-      }
-
-      // Perform the scan action
-      const result = await scanQRCode(qrCode, action, profile?.id);
-      
-      if (result.success) {
-        addDebugLog(`✅ Manual ${action} completed successfully`);
-        setScanResult({
-          success: true,
-          message: `${action === 'check_in' ? 'Check-in' : 'Check-out'} successful`,
-          visitor: visitorInfo,
-          action
-        });
-        setQrCode('');
-        fetchRecentScans();
-        
-        toast({
-          title: 'Success',
-          description: `${visitorInfo.visitor.full_name} has been ${action.replace('_', ' ')}ed successfully`,
-        });
-      } else {
-        addDebugLog(`❌ Manual ${action} failed: ${result.error}`);
-        setScanResult({
-          success: false,
-          message: `${action.replace('_', ' ')} Failed`,
-          error: result.error
-        });
-        
-        toast({
-          title: 'Error',
-          description: result.error || 'Operation failed',
-          variant: 'destructive'
-        });
-      }
-    } catch (error: any) {
-      addDebugLog(`❌ Manual scan error: ${error.message}`);
-      setScanResult({
-        success: false,
-        message: `${action.replace('_', ' ')} Failed`,
-        error: error.message
-      });
-      
-      toast({
-        title: 'Processing Error',
-        description: 'Failed to process the digital visit pass. Please try again.',
-        variant: 'destructive'
-      });
-    }
+  const handleManualScan = (action: 'check_in' | 'check_out') => {
+    if (!qrCode.trim()) return;
+    handleScan(qrCode, action);
   };
 
-  const getVisitorInfo = async (qrCode: string): Promise<VisitorInfo | null> => {
-    try {
-      addDebugLog(`🔍 Validating QR code (full): ${qrCode}`);
-      addDebugLog(`📏 QR code length: ${qrCode.length}`);
-      addDebugLog(`🔤 QR code type: ${typeof qrCode}`);
-      
-      // Extract visit request ID from QR code
-      // Supports multiple formats:
-      // Current: QR_{visitRequestId}_{timestamp}
-      // Legacy: VMS-{visitRequestId}-{timestamp}
-      // Legacy UUID: VMS-{uuid-parts}-{timestamp}
-      // Enhanced: VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
-      if (!qrCode.startsWith('VMS-') && !qrCode.startsWith('QR_')) {
-        addDebugLog(`❌ Invalid QR format. Expected to start with 'VMS-' or 'QR_', Got: ${qrCode}`);
-        throw new Error('Invalid QR code format. Expected digital visit pass format.');
-      }
-      
-      let visitRequestId: string;
-      let timestamp: string;
-      
-      // Handle QR_ format: QR_{visitRequestId}_{timestamp}
-      if (qrCode.startsWith('QR_')) {
-        const parts = qrCode.split('_');
-        if (parts.length >= 3) {
-          visitRequestId = parts[1];
-          timestamp = parts[2];
-          addDebugLog(`🔧 Detected QR_ format - ID: ${visitRequestId}, Timestamp: ${timestamp}`);
-        } else {
-          addDebugLog(`❌ Invalid QR_ format. Expected minimum 3 parts, Got: ${qrCode}`);
-          throw new Error('Invalid QR code format. Expected digital visit pass format.');
-        }
-      } else {
-        // Split by hyphens and extract parts for VMS- formats
-        const parts = qrCode.split('-');
-        if (parts.length < 3) {
-          addDebugLog(`❌ Invalid QR format. Expected minimum 3 parts, Got: ${qrCode}`);
-          throw new Error('Invalid QR code format. Expected digital visit pass format.');
-        }
-        
-        // Handle enhanced format: VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
-        if (parts.length >= 7 && parts[1].startsWith('v')) {
-          addDebugLog(`🔧 Detected enhanced QR format v${parts[1].substring(1)}`);
-          
-          if (parts.length === 7) {
-            // Simple ID format: VMS-v2.0-{visitRequestId}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
-            visitRequestId = parts[2];
-            timestamp = parts[3];
-          } else if (parts.length === 11) {
-            // UUID format: VMS-v2.0-{uuid-part1}-{uuid-part2}-{uuid-part3}-{uuid-part4}-{uuid-part5}-{timestamp}-{expiresAt}-{checksum}-{securityLevel}
-            visitRequestId = parts.slice(2, 7).join('-'); // Reconstruct UUID
-            timestamp = parts[7];
-          } else {
-            addDebugLog(`❌ Invalid enhanced QR format. Unexpected number of parts: ${parts.length}, Got: ${qrCode}`);
-            throw new Error('Invalid QR code format. Expected digital visit pass format.');
-          }
-        }
-        // Handle legacy formats
-        else if (parts.length === 3) {
-        // Simple legacy format: VMS-{visitRequestId}-{timestamp}
-        addDebugLog(`🔧 Detected legacy QR format (simple)`);
-        visitRequestId = parts[1];
-        timestamp = parts[2];
-      } else if (parts.length === 7) {
-        // UUID legacy format: VMS-{uuid-part1}-{uuid-part2}-{uuid-part3}-{uuid-part4}-{uuid-part5}-{timestamp}
-        addDebugLog(`🔧 Detected legacy QR format (UUID)`);
-        visitRequestId = parts.slice(1, 6).join('-'); // Reconstruct UUID
-        timestamp = parts[6];
-      } else {
-          addDebugLog(`❌ Invalid QR format. Unexpected number of parts: ${parts.length}, Got: ${qrCode}`);
-          throw new Error('Invalid QR code format. Expected digital visit pass format.');
-        }
-      }
-      
-      addDebugLog(`📋 Extracted visit request ID: ${visitRequestId}`);
-      addDebugLog(`⏰ Extracted timestamp: ${timestamp}`);
-
-      const { data, error } = await supabase
-        .from('visit_requests')
-        .select(`
-          *,
-          visitor:profiles!visit_requests_visitor_id_fkey(full_name, email, phone, company),
-          host:profiles!visit_requests_host_id_fkey(full_name, company)
-        `)
-        .eq('id', visitRequestId)
-        .eq('qr_code', qrCode)
-        .single();
-
-      if (error) {
-        addDebugLog(`❌ Database error: ${error.message}`);
-        throw error;
-      }
-
-      // Enhanced validation for digital visit pass
-      if (!data) {
-        addDebugLog('❌ Visit request not found in database');
-        throw new Error('Visit request not found');
-      }
-
-      addDebugLog(`✅ Found visit request for ${data.visitor?.full_name || 'Unknown visitor'}`);
-      addDebugLog(`📅 Visit date: ${data.visit_date}, Status: ${data.status}`);
-
-      // Check if visit is for today or future dates
-      const visitDate = new Date(data.visit_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      visitDate.setHours(0, 0, 0, 0);
-
-      if (visitDate < today) {
-        addDebugLog(`❌ Visit pass expired. Visit date: ${data.visit_date}, Today: ${today.toISOString().split('T')[0]}`);
-        throw new Error('Visit pass has expired');
-      }
-
-      // Check if visit is within time window (30 minutes before start time to end time)
-      const now = new Date();
-      const startTime = new Date(`${data.visit_date}T${data.start_time}`);
-      const endTime = new Date(`${data.visit_date}T${data.end_time}`);
-      const earlyAccessTime = new Date(startTime.getTime() - 30 * 60 * 1000); // 30 minutes before
-
-      addDebugLog(`⏰ Time validation - Now: ${now.toLocaleTimeString()}, Early access: ${earlyAccessTime.toLocaleTimeString()}, End: ${endTime.toLocaleTimeString()}`);
-
-      if (now < earlyAccessTime) {
-        addDebugLog('❌ Visit pass not yet valid - too early');
-        throw new Error('Visit pass is not yet valid. Please arrive within 30 minutes of your scheduled time.');
-      }
-
-      if (now > endTime && data.status !== 'checked_in') {
-        addDebugLog('❌ Visit pass expired - past end time and not checked in');
-        throw new Error('Visit pass has expired for the scheduled time');
-      }
-
-      // Validate visit status
-      if (!['approved', 'checked_in'].includes(data.status)) {
-        addDebugLog(`❌ Invalid status: ${data.status}. Expected: approved or checked_in`);
-        throw new Error('Visit pass is not approved or has been cancelled');
-      }
-
-      addDebugLog(`✅ All validations passed for visitor: ${data.visitor?.full_name}`);
-      return data as VisitorInfo;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown validation error';
-      addDebugLog(`❌ Validation failed: ${errorMessage}`);
-      console.error('Error validating visit pass:', error);
-      return null;
-    }
-  };
-
-  const simulateQRScan = async () => {
-    try {
-      // First, let's get a real visit request from the database for demo
-      const { data: visitRequests, error } = await supabase
-        .from('visit_requests')
-        .select('id, qr_code')
-        .eq('status', 'approved')
-        .not('qr_code', 'is', null)
-        .limit(1);
-
-      if (error) {
-        console.error('Error fetching visit requests:', error);
-        // Fallback to a properly formatted demo QR code
-        const demoQRCode = `VMS-550e8400-e29b-41d4-a716-446655440000-${Date.now()}`;
-        setQrCode(demoQRCode);
-        addDebugLog(`🎭 Using fallback demo QR: ${demoQRCode}`);
-        return;
-      }
-
-      if (visitRequests && visitRequests.length > 0 && visitRequests[0].qr_code) {
-        // Use real QR code from database
-        setQrCode(visitRequests[0].qr_code);
-        addDebugLog(`🎭 Using real QR from database: ${visitRequests[0].qr_code}`);
-      } else {
-        // Create a properly formatted demo QR code with valid UUID format
-        const demoQRCode = `VMS-550e8400-e29b-41d4-a716-446655440000-${Date.now()}`;
-        setQrCode(demoQRCode);
-        addDebugLog(`🎭 Using formatted demo QR: ${demoQRCode}`);
-      }
-    } catch (error) {
-      console.error('Error in simulateQRScan:', error);
-      // Fallback to properly formatted demo
-      const demoQRCode = `VMS-550e8400-e29b-41d4-a716-446655440000-${Date.now()}`;
-      setQrCode(demoQRCode);
-      addDebugLog(`🎭 Error fallback demo QR: ${demoQRCode}`);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-blue-100 text-blue-800';
-      case 'checked_in':
-        return 'bg-green-100 text-green-800';
-      case 'checked_out':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const simulateQRScan = () => {
+    const demoQRCodes = [
+      'VMS-550e8400-e29b-41d4-a716-446655440100-1737550800000',
+      'VMS-550e8400-e29b-41d4-a716-446655440102-1737551400000',
+      'INVALID-QR-CODE',
+      'VMS-expired-visit-123'
+    ];
+    const randomQR = demoQRCodes[Math.floor(Math.random() * demoQRCodes.length)];
+    setQrCode(randomQR);
+    addDebugLog(`Generated demo QR: ${randomQR}`);
   };
 
   const formatTime = (timeString: string) => {
@@ -763,273 +744,157 @@ export default function ScanQRCode() {
     });
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'checked_in':
+        return 'bg-blue-100 text-blue-800';
+      case 'checked_out':
+        return 'bg-gray-100 text-gray-800';
+      case 'expired':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">QR Code Scanner</h1>
-        <p className="text-muted-foreground">
-          Scan visitor QR codes for check-in and check-out
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Scanner Section */}
-        <div className="space-y-6">
-          {/* Debug Information Panel */}
-          {debugInfo.length > 0 && (
-            <Card className="p-4 bg-gray-50 border-l-4 border-l-blue-500">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-700">
-                  🔍 Debug Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {debugInfo.map((log, index) => (
-                    <div key={index} className="text-xs font-mono text-gray-600 bg-white px-2 py-1 rounded">
-                      {log}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Camera Scanner */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="h-5 w-5" />
-                Camera Scanner
-              </CardTitle>
-              <CardDescription>
-                Use your device camera to scan QR codes
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative">
-                <div className="border-2 border-dashed border-muted rounded-lg overflow-hidden bg-black">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    className={`w-full h-64 object-cover ${!cameraActive ? 'hidden' : ''}`}
-                  />
-                  {!cameraActive && (
-                    <div className="h-64 flex items-center justify-center">
-                      <div className="text-center">
-                        <QrCode className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-medium mb-2">Camera Scanner</h3>
-                        <p className="text-muted-foreground mb-4">
-                          {!componentReady ? 'Loading camera component...' : 'Position QR code within the camera view'}
-                        </p>
-                        {!componentReady && (
-                          <p className="text-sm text-muted-foreground">
-                            Please wait for the component to load completely
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <canvas ref={canvasRef} className="hidden" />
-              </div>
-              
-              <div className="flex gap-2">
-                {!cameraActive ? (
-                  <Button onClick={startCamera} className="flex-1">
-                    <Camera className="mr-2 h-4 w-4" />
-                    Start Camera
-                  </Button>
-                ) : (
-                  <Button onClick={stopCamera} variant="outline" className="flex-1">
-                    <CameraOff className="mr-2 h-4 w-4" />
-                    Stop Camera
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Manual Input */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <QrCode className="h-5 w-5" />
-                Manual Entry
-              </CardTitle>
-              <CardDescription>
-                Enter QR code manually or use demo data
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="qr_code">QR Code</Label>
-                <div className="flex space-x-2">
-                  <Input
-                    id="qr_code"
-                    value={qrCode}
-                    onChange={(e) => setQrCode(e.target.value)}
-                    placeholder="Scan or enter QR code (e.g., VMS-550e8400-e29b-41d4-a716-446655440100-1737550800000)"
-                    className="flex-1"
-                    aria-label="QR code input field"
-                  />
-                  <Button 
-                    variant="outline"
-                    onClick={simulateQRScan}
-                    aria-label="Generate demo QR code"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Test QR codes: VMS-550e8400-e29b-41d4-a716-446655440100-1737550800000 (approved), 
-                  VMS-550e8400-e29b-41d4-a716-446655440102-1737551400000 (checked-in)<br/>
-                  Error test: INVALID-QR-CODE (invalid format), VMS-expired-visit-123 (expired)
-                </p>
-              </div>
-
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() => handleManualScan('check_in')}
-                  disabled={!qrCode.trim() || loading}
-                  className="flex-1"
-                >
-                  <UserCheck className="mr-2 h-4 w-4" />
-                  Check In
-                </Button>
-                <Button
-                  onClick={() => handleManualScan('check_out')}
-                  disabled={!qrCode.trim() || loading}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Clock className="mr-2 h-4 w-4" />
-                  Check Out
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
+        <div className="text-center mb-6">
+          <QrCode className="mx-auto h-12 w-12 text-indigo-600 mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">QR Code Scanner</h1>
+          <p className="text-gray-600">Position the QR code within the camera frame</p>
         </div>
 
-        {/* Results Section */}
-        <div className="space-y-6">
-          {/* Scan Result */}
-          {scanResult && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {scanResult.success ? (
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-600" />
-                  )}
-                  Scan Result
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {scanResult.success && scanResult.visitor ? (
-                  <div className="space-y-4">
-                    <Alert>
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        {scanResult.message}
-                      </AlertDescription>
-                    </Alert>
+        {/* User Interaction Required Notice */}
+        {userInteractionRequired && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center mb-2">
+              <AlertCircle className="h-5 w-5 text-yellow-600 mr-2" />
+              <h3 className="text-sm font-medium text-yellow-800">Camera Permission Required</h3>
+            </div>
+            <p className="text-sm text-yellow-700 mb-3">
+              Camera access was denied. Please grant permission and try again.
+            </p>
+            <Button 
+              onClick={startCamera}
+              className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+              disabled={isScanning}
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Request Camera Access
+            </Button>
+          </div>
+        )}
 
-                    {/* Visitor Information */}
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-green-800 mb-3">Visitor Information</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-green-600" />
-                          <span className="font-medium">{scanResult.visitor.visitor.full_name}</span>
-                        </div>
-                        {scanResult.visitor.visitor.company && (
-                          <div className="flex items-center gap-2">
-                            <Building className="h-4 w-4 text-green-600" />
-                            <span>{scanResult.visitor.visitor.company}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-green-600" />
-                          <span>Host: {scanResult.visitor.host.full_name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-green-600" />
-                          <span>{scanResult.visitor.visit_date}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-green-600" />
-                          <span>
-                            {formatTime(scanResult.visitor.start_time)} - {formatTime(scanResult.visitor.end_time)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(scanResult.visitor.status)}>
-                            {scanResult.visitor.status.replace('_', ' ').toUpperCase()}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
+        {/* Camera View */}
+        <div className="relative mb-4">
+          <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              playsInline
+              muted
+              autoPlay
+            />
+            
+            {/* Scanning overlay */}
+            {isScanning && (
+              <div className="absolute inset-0 border-2 border-indigo-500 rounded-lg">
+                <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-indigo-500"></div>
+                <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-indigo-500"></div>
+                <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-indigo-500"></div>
+                <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-indigo-500"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm">
+                    Scanning for QR codes...
                   </div>
-                ) : (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      {scanResult.error || scanResult.message}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Recent Scans */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Scans</CardTitle>
-              <CardDescription>Latest QR code scan activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {recentScans.length > 0 ? (
-                  recentScans.map((scan, index) => (
-                    <div key={scan.id || index} className="flex items-center justify-between border-b pb-2">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-accent rounded-full">
-                          {scan.action === 'check_in' ? (
-                            <UserCheck className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <Clock className="h-4 w-4 text-blue-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">
-                            {scan.visit_request?.visitor?.full_name || 'Unknown Visitor'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {scan.action === 'check_in' ? 'Check-in' : 'Check-out'} successful
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">
-                        {new Date(scan.timestamp).toLocaleTimeString()}
-                      </Badge>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <QrCode className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No recent scans</p>
-                  </div>
-                )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
+            
+            {/* Camera not active overlay */}
+            {!cameraActive && !userInteractionRequired && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
+                <div className="text-center">
+                  <Camera className="mx-auto h-12 w-12 text-gray-400 mb-2" />
+                  <p className="text-gray-600 text-sm">Camera not active</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="space-y-3">
+          {!cameraActive && !userInteractionRequired ? (
+            <Button 
+              onClick={startCamera} 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              disabled={isScanning}
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Start Camera
+            </Button>
+          ) : cameraActive ? (
+            <Button 
+              onClick={stopCamera} 
+              variant="outline" 
+              className="w-full"
+            >
+              <Square className="mr-2 h-4 w-4" />
+              Stop Camera
+            </Button>
+          ) : null}
+          
+          <Button 
+            onClick={() => navigate('/security')} 
+            variant="ghost" 
+            className="w-full"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Security
+          </Button>
+        </div>
+
+        {/* Debug Information */}
+        {showDebug && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-700">Debug Information</h3>
+              <Button
+                onClick={() => setShowDebug(false)}
+                variant="ghost"
+                size="sm"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-1 text-xs text-gray-600 max-h-40 overflow-y-auto">
+              {debugLogs.map((log, index) => (
+                <div key={index} className="font-mono">{log}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Debug Toggle */}
+        <div className="mt-4 text-center">
+          <Button
+            onClick={() => setShowDebug(!showDebug)}
+            variant="ghost"
+            size="sm"
+            className="text-gray-500"
+          >
+            {showDebug ? 'Hide' : 'Show'} Debug Info
+          </Button>
         </div>
       </div>
+      
+      {/* Hidden canvas for QR detection */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }

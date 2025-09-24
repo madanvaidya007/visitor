@@ -54,7 +54,7 @@ export function DashboardSidebar({ userRole }: DashboardSidebarProps) {
           { href: '/quick-registration', icon: UserCheck, label: 'Quick Registration' },
           { href: '/visitor-queue', icon: Users, label: 'Visitor Queue' },
           { href: '/generate-pass', icon: QrCode, label: 'Generate Pass' },
-          { href: '/zones', icon: MapPin, label: 'Zone Management' },
+          { href: '/zone-management', icon: MapPin, label: 'Zone Management' },
           { href: '/visitor-search', icon: Users, label: 'Visitor Search' }
         ];
 

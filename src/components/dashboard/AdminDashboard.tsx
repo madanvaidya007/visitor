@@ -12,10 +12,13 @@ import {
   UserCheck,
   Calendar,
   FileText,
-  Shield
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useErrorHandler } from '@/utils/errorHandler';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { UserManagementTab } from '@/components/admin/UserManagementTab';
 import { ZoneManagementTab } from '@/components/admin/ZoneManagementTab';
 import { GuardManagementTab } from '@/components/admin/GuardManagementTab';
@@ -39,12 +42,54 @@ export function AdminDashboard() {
     pending_requests: 0
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [systemErrors, setSystemErrors] = useState<any[]>([]);
   const { toast } = useToast();
+  const { handleError, getStoredErrors } = useErrorHandler();
+  const { sendSystemAlert } = useAdminNotifications();
 
   useEffect(() => {
     fetchSystemStats();
     fetchRecentActivity();
+    loadSystemErrors();
+    
+    // Set up system health monitoring
+    const healthCheckInterval = setInterval(performSystemHealthCheck, 300000); // Every 5 minutes
+    
+    return () => clearInterval(healthCheckInterval);
   }, []);
+
+  const loadSystemErrors = () => {
+    const errors = getStoredErrors();
+    setSystemErrors(errors.slice(-10)); // Show last 10 errors
+  };
+
+  const performSystemHealthCheck = async () => {
+    try {
+      // Check database connectivity
+      const { error: dbError } = await supabase.from('profiles').select('id').limit(1);
+      if (dbError) {
+        throw new Error(`Database connectivity issue: ${dbError.message}`);
+      }
+
+      // Check for system anomalies
+      const { data: recentErrors } = await supabase
+        .from('system_logs')
+        .select('*')
+        .eq('level', 'error')
+        .gte('created_at', new Date(Date.now() - 300000).toISOString()); // Last 5 minutes
+
+      if (recentErrors && recentErrors.length > 10) {
+        await sendSystemAlert(['admin@company.com'], {
+          title: 'High Error Rate Detected',
+          message: `System is experiencing a high error rate: ${recentErrors.length} errors in the last 5 minutes.`,
+          severity: 'high',
+          actionRequired: true
+        });
+      }
+    } catch (error) {
+      await handleError(error as Error, { component: 'AdminDashboard', action: 'healthCheck' });
+    }
+  };
 
   const fetchSystemStats = async () => {
     try {
@@ -85,8 +130,8 @@ export function AdminDashboard() {
         active_visitors: activeVisitors || 0,
         pending_requests: pendingRequests || 0
       });
-    } catch (error: any) {
-      console.error('Error fetching system stats:', error);
+    } catch (error) {
+      await handleError(error as Error, { component: 'AdminDashboard', action: 'fetchSystemStats' });
     }
   };
 
@@ -108,8 +153,8 @@ export function AdminDashboard() {
 
       if (error) throw error;
       setRecentActivity(data || []);
-    } catch (error: any) {
-      console.error('Error fetching recent activity:', error);
+    } catch (error) {
+      await handleError(error as Error, { component: 'AdminDashboard', action: 'fetchRecentActivity' });
     }
   };
 

@@ -122,11 +122,10 @@ export default function ZoneAccess() {
   const { toast } = useToast();
   
   // Real-time zone data hook
-  const realtimeData = useRealtimeZoneData({
-    enableZones: true,
-    enableOccupancy: true,
+  const { data: realtimeData, loading: realtimeLoading, error: realtimeError } = useRealtimeZoneData({
     enableLogs: true,
     enableAlerts: true,
+    enableOccupancy: true,
     enableStatistics: true
   });
   
@@ -150,10 +149,10 @@ export default function ZoneAccess() {
 
   // Use real-time statistics instead of local state
   const stats = {
-    total_zones: realtimeData.statistics?.total_zones || 0,
-    active_zones: realtimeData.statistics?.active_zones || 0,
-    restricted_zones: realtimeData.statistics?.restricted_zones || 0,
-    current_visitors: realtimeData.statistics?.current_visitors || 0
+    total_zones: realtimeData.statistics?.totalZones || 0,
+    active_zones: realtimeData.statistics?.activeZones || 0,
+    restricted_zones: realtimeData.statistics?.totalZones || 0, // Using totalZones as fallback since there's no restrictedZones property
+    current_visitors: realtimeData.statistics?.visitorsInZones || 0
   };
 
   useEffect(() => {
@@ -213,6 +212,79 @@ export default function ZoneAccess() {
     });
     
     setZones(zonesWithOccupancy);
+  };
+
+  // Function to log zone access (entry/exit)
+  const logZoneAccess = async (
+    zoneId: string,
+    visitorId: string,
+    visitRequestId: string,
+    action: 'entry' | 'exit',
+    guardId?: string,
+    notes?: string,
+    description?: string
+  ) => {
+    try {
+      const { error } = await supabase
+        .from('zone_entry_logs')
+        .insert({
+          zone_id: zoneId,
+          visitor_id: visitorId,
+          visit_request_id: visitRequestId,
+          action,
+          scanned_by: guardId,
+          notes: notes || description,
+          timestamp: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Zone Access Logged",
+        description: `${action === 'entry' ? 'Entry' : 'Exit'} logged successfully`,
+      });
+
+      // Refresh data
+      fetchData();
+    } catch (error: any) {
+      console.error('Error logging zone access:', error);
+      toast({
+        title: "Error",
+        description: "Failed to log zone access",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Function to resolve security alerts
+  const resolveAlert = async (alertId: string, resolvedBy: string) => {
+    try {
+      const { error } = await supabase
+        .from('zone_alerts')
+        .update({
+          is_active: false,
+          resolved_by: resolvedBy,
+          resolved_at: new Date().toISOString()
+        })
+        .eq('id', alertId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Alert Resolved",
+        description: "Security alert has been resolved",
+      });
+
+      // Refresh data
+      fetchData();
+    } catch (error: any) {
+      console.error('Error resolving alert:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resolve alert",
+        variant: "destructive",
+      });
+    }
   };
 
   const fetchZoneAccesses = async () => {
@@ -400,12 +472,12 @@ export default function ZoneAccess() {
       </div>
 
       {/* Real-time Alerts Banner */}
-      {alerts.length > 0 && (
+      {realtimeData.alerts.length > 0 && (
         <Alert className="border-orange-200 bg-orange-50">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>
-              {alerts.length} active alert{alerts.length > 1 ? 's' : ''} require attention
+              {realtimeData.alerts.length} active alert{realtimeData.alerts.length > 1 ? 's' : ''} require attention
             </span>
             <Button 
               variant="outline" 
@@ -430,7 +502,7 @@ export default function ZoneAccess() {
               </div>
               <div className="flex flex-col items-center">
                 <Building className="h-8 w-8 text-blue-500" />
-                {!realtimeLoading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
+                {!loading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
               </div>
             </div>
           </CardContent>
@@ -445,7 +517,7 @@ export default function ZoneAccess() {
               </div>
               <div className="flex flex-col items-center">
                 <CheckCircle className="h-8 w-8 text-green-500" />
-                {!realtimeLoading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
+                {!loading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
               </div>
             </div>
           </CardContent>
@@ -460,7 +532,7 @@ export default function ZoneAccess() {
               </div>
               <div className="flex flex-col items-center">
                 <Shield className="h-8 w-8 text-red-500" />
-                {!realtimeLoading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
+                {!loading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
               </div>
             </div>
           </CardContent>
@@ -472,15 +544,15 @@ export default function ZoneAccess() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Current Visitors</p>
                 <p className="text-2xl font-bold">{stats.current_visitors}</p>
-                {statistics.zones_at_capacity > 0 && (
+                {realtimeData.statistics?.totalZones && realtimeData.statistics.totalZones > 0 && (
                   <p className="text-xs text-orange-600 mt-1">
-                    {statistics.zones_at_capacity} zone{statistics.zones_at_capacity > 1 ? 's' : ''} at capacity
+                    {realtimeData.statistics.totalZones} zone{realtimeData.statistics.totalZones > 1 ? 's' : ''} at capacity
                   </p>
                 )}
               </div>
               <div className="flex flex-col items-center">
                 <Users className="h-8 w-8 text-purple-500" />
-                {!realtimeLoading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
+                {!loading && <Wifi className="h-3 w-3 text-green-500 mt-1" />}
               </div>
             </div>
           </CardContent>
@@ -782,20 +854,20 @@ export default function ZoneAccess() {
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5" />
                   Live Zone Activity
-                  {!realtimeLoading && <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />}
+                  {!loading && <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />}
                 </CardTitle>
                 <CardDescription>Real-time zone entry and exit logs</CardDescription>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-80">
-                  {entryLogs.length === 0 ? (
+                  {realtimeData.accessLogs.length === 0 ? (
                     <div className="text-center py-8">
                       <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">No recent activity</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {entryLogs.slice(0, 20).map((log) => (
+                      {realtimeData.accessLogs.slice(0, 20).map((log) => (
                         <div key={log.id} className="flex items-center gap-3 p-3 border rounded-lg">
                           <div className={`p-2 rounded-full ${
                             log.action === 'entry' ? 'bg-green-100 text-green-600' : 
@@ -840,14 +912,14 @@ export default function ZoneAccess() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-80">
-                  {zoneOccupancy.length === 0 ? (
+                  {realtimeData.occupancy.length === 0 ? (
                     <div className="text-center py-8">
                       <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">No occupancy data available</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {zoneOccupancy.map((occupancy) => {
+                      {realtimeData.occupancy.map((occupancy) => {
                         const zone = zones.find(z => z.id === occupancy.zone_id);
                         if (!zone) return null;
                         
@@ -902,7 +974,7 @@ export default function ZoneAccess() {
               <CardDescription>Visitors currently inside zones</CardDescription>
             </CardHeader>
             <CardContent>
-              {activeSessions.length === 0 ? (
+              {realtimeData.visitorRequests.length === 0 ? (
                 <div className="text-center py-8">
                   <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">No active sessions</p>
@@ -920,7 +992,7 @@ export default function ZoneAccess() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeSessions.map((session) => (
+                      {realtimeData.visitorRequests.map((session) => (
                         <TableRow key={session.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -987,13 +1059,13 @@ export default function ZoneAccess() {
           <DialogHeader>
             <DialogTitle>Active Zone Alerts</DialogTitle>
             <DialogDescription>
-              {alerts.length} active alert{alerts.length > 1 ? 's' : ''} requiring attention
+              {realtimeData.alerts.length} active alert{realtimeData.alerts.length > 1 ? 's' : ''} requiring attention
             </DialogDescription>
           </DialogHeader>
           
           <ScrollArea className="max-h-96">
             <div className="space-y-4">
-              {alerts.map((alert) => (
+              {realtimeData.alerts.map((alert) => (
                 <div key={alert.id} className={`border rounded-lg p-4 ${
                   alert.severity >= 3 ? 'border-red-200 bg-red-50' :
                   alert.severity >= 2 ? 'border-orange-200 bg-orange-50' :

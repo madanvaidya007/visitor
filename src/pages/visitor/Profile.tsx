@@ -70,7 +70,7 @@ export default function Profile() {
       // Refresh the page to get updated profile data
       window.location.reload();
     } catch (error: any) {
-      console.error('Error updating profile:', error);
+      // Error handled silently
       toast({
         title: "Error",
         description: error.message || "Failed to update profile.",

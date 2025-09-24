@@ -54,12 +54,12 @@ export function useAuth() {
                 .single();
 
               if (error && error.code !== 'PGRST116') {
-                console.error('Error fetching profile:', error);
+                console.error('Profile fetch failed:', error);
               } else {
                 setProfile(profile);
               }
             } catch (error) {
-              console.error('Error in profile fetch:', error);
+              console.error('Profile fetch operation failed:', error);
             } finally {
               setLoading(false);
             }
@@ -74,7 +74,7 @@ export function useAuth() {
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
-        console.error('Error getting session:', error);
+        console.error('Session retrieval failed:', error);
         // Clear any invalid session data
         localStorage.removeItem('supabase.auth.token');
         setLoading(false);
@@ -130,7 +130,7 @@ export function useAuth() {
           });
 
         if (profileError) {
-          console.error('Error creating profile:', profileError);
+          console.error('Profile creation failed:', profileError);
         }
       }
 

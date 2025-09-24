@@ -399,8 +399,27 @@ export default function InviteVisitor() {
 
       // Send notification if requested
       if (invitationForm.send_notification) {
-        // In a real app, you would send email/SMS here
-        console.log('Sending invitation notification to:', invitationForm.visitor_email);
+        try {
+          const { sendVisitorInvitation } = await import('../../hooks/useEmailService');
+          
+          // Get zone name for the email
+          const selectedZone = zones.find(z => z.id === invitationForm.zone_id);
+          
+          await sendVisitorInvitation(invitationForm.visitor_email, {
+            visitorName: invitationForm.visitor_name,
+            hostName: profile?.full_name || 'Host',
+            company: profile?.company || 'Company',
+            visitDate: invitationForm.visit_date,
+            startTime: invitationForm.start_time,
+            endTime: invitationForm.end_time,
+            purpose: invitationForm.purpose,
+            zone: selectedZone?.name || 'Main Building',
+            notes: invitationForm.notes || undefined,
+          });
+        } catch (error) {
+          console.error('Failed to send email invitation:', error);
+          // Don't fail the invitation creation if email fails
+        }
       }
 
       toast({
@@ -862,8 +881,11 @@ export default function InviteVisitor() {
                   if (errors.full_name) setErrors(prev => ({ ...prev, full_name: '' }));
                 }}
                 className={errors.full_name ? 'border-red-500' : ''}
+                aria-describedby={errors.full_name ? 'new-full-name-error' : undefined}
+                aria-invalid={!!errors.full_name}
+                aria-required="true"
               />
-              {errors.full_name && <p className="text-sm text-red-500">{errors.full_name}</p>}
+              {errors.full_name && <p id="new-full-name-error" className="text-sm text-red-500">{errors.full_name}</p>}
             </div>
 
             <div className="space-y-2">
@@ -878,8 +900,11 @@ export default function InviteVisitor() {
                   if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
                 }}
                 className={errors.email ? 'border-red-500' : ''}
+                aria-describedby={errors.email ? 'new-email-error' : undefined}
+                aria-invalid={!!errors.email}
+                aria-required="true"
               />
-              {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
+              {errors.email && <p id="new-email-error" className="text-sm text-red-500">{errors.email}</p>}
             </div>
 
             <div className="space-y-2">
@@ -889,7 +914,11 @@ export default function InviteVisitor() {
                 placeholder="+1 (555) 123-4567"
                 value={newVisitorForm.phone}
                 onChange={(e) => setNewVisitorForm(prev => ({ ...prev, phone: e.target.value }))}
+                aria-describedby="new-phone-help"
               />
+              <div id="new-phone-help" className="sr-only">
+                Optional field for visitor's phone number
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -899,7 +928,11 @@ export default function InviteVisitor() {
                 placeholder="Company name"
                 value={newVisitorForm.company}
                 onChange={(e) => setNewVisitorForm(prev => ({ ...prev, company: e.target.value }))}
+                aria-describedby="new-company-help"
               />
+              <div id="new-company-help" className="sr-only">
+                Optional field for visitor's company name
+              </div>
             </div>
 
             {/* Photo Capture Section */}

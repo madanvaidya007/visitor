@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { QrCode, Download, Share, Clock, MapPin, User, Building, RefreshCw } from 'lucide-react';
-import QRCodeLib from 'qrcode';
+import qrcode from 'qrcode-generator';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -111,17 +111,42 @@ export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogP
 
       // Generate QR code image with enhanced styling
       if (qrCodeData) {
-        const qrImageUrl = await QRCodeLib.toDataURL(qrCodeData, {
-          width: 300,
-          margin: 2,
-          color: {
-            dark: '#1e293b',
-            light: '#ffffff'
-          },
-          errorCorrectionLevel: 'M'
-        });
-
-        setQrCodeUrl(qrImageUrl);
+        const qr = qrcode(0, 'M');
+        qr.addData(qrCodeData);
+        qr.make();
+        
+        // Create canvas and draw QR code
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const moduleCount = qr.getModuleCount();
+        const cellSize = 10;
+        const margin = 20;
+        
+        canvas.width = canvas.height = moduleCount * cellSize + margin * 2;
+        
+        if (ctx) {
+          // Fill background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Draw QR code
+          ctx.fillStyle = '#1e293b';
+          for (let row = 0; row < moduleCount; row++) {
+            for (let col = 0; col < moduleCount; col++) {
+              if (qr.isDark(row, col)) {
+                ctx.fillRect(
+                  col * cellSize + margin,
+                  row * cellSize + margin,
+                  cellSize,
+                  cellSize
+                );
+              }
+            }
+          }
+          
+          const qrImageUrl = canvas.toDataURL();
+          setQrCodeUrl(qrImageUrl);
+        }
         
         if (forceRegenerate) {
           toast({

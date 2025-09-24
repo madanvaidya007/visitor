@@ -2,13 +2,21 @@
 -- This migration adds real-time tracking capabilities for zone access management
 
 -- Create enum for zone entry/exit actions
-CREATE TYPE public.zone_action AS ENUM ('entry', 'exit', 'emergency_exit', 'forced_entry');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'zone_action') THEN
+        CREATE TYPE public.zone_action AS ENUM ('entry', 'exit', 'emergency_exit', 'forced_entry');
+    END IF;
+END $$;
 
 -- Create enum for zone alert types
-CREATE TYPE public.zone_alert_type AS ENUM ('capacity_exceeded', 'unauthorized_access', 'emergency', 'maintenance');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'zone_alert_type') THEN
+        CREATE TYPE public.zone_alert_type AS ENUM ('capacity_exceeded', 'unauthorized_access', 'emergency', 'maintenance');
+    END IF;
+END $$;
 
 -- Create zone occupancy tracking table for real-time data
-CREATE TABLE public.zone_occupancy (
+CREATE TABLE IF NOT EXISTS public.zone_occupancy (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   zone_id UUID NOT NULL REFERENCES public.zones(id) ON DELETE CASCADE,
   current_count INTEGER NOT NULL DEFAULT 0,
@@ -19,7 +27,7 @@ CREATE TABLE public.zone_occupancy (
 );
 
 -- Create zone entry/exit logs for detailed tracking
-CREATE TABLE public.zone_entry_logs (
+CREATE TABLE IF NOT EXISTS public.zone_entry_logs (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   zone_id UUID NOT NULL REFERENCES public.zones(id),
   visitor_id UUID NOT NULL REFERENCES public.profiles(id),
@@ -33,7 +41,7 @@ CREATE TABLE public.zone_entry_logs (
 );
 
 -- Create zone alerts table for real-time notifications
-CREATE TABLE public.zone_alerts (
+CREATE TABLE IF NOT EXISTS public.zone_alerts (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   zone_id UUID NOT NULL REFERENCES public.zones(id),
   visitor_id UUID REFERENCES public.profiles(id), -- Optional visitor reference for visitor-specific alerts
@@ -49,7 +57,7 @@ CREATE TABLE public.zone_alerts (
 );
 
 -- Create zone access sessions for tracking active visits
-CREATE TABLE public.zone_access_sessions (
+CREATE TABLE IF NOT EXISTS public.zone_access_sessions (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   zone_access_id UUID NOT NULL REFERENCES public.zone_access(id),
   zone_id UUID NOT NULL REFERENCES public.zones(id),

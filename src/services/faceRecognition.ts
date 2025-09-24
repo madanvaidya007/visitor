@@ -154,9 +154,8 @@ export class FaceRecognitionService {
       console.log('Face recognition service initialized successfully');
     } catch (error) {
       console.error('Failed to initialize face recognition service:', error);
-      // Fallback to mock mode for development
-      console.log('Falling back to mock face recognition mode');
-      this.isInitialized = true;
+      // TODO: Implement proper error handling for face recognition initialization
+      this.isInitialized = false;
     } finally {
       this.isInitializing = false;
     }
@@ -197,8 +196,8 @@ export class FaceRecognitionService {
         }));
       }
       
-      // Fallback to mock detection for development
-      console.log('No faces detected or using mock mode');
+      // No faces detected
+      console.log('No faces detected');
       return [];
     } catch (error) {
       console.error('Face detection failed:', error);

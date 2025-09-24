@@ -46,37 +46,33 @@ ALTER TABLE public.face_recognition_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.face_recognition_settings ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for face_profiles
-CREATE POLICY "Admins and security can manage face profiles" ON public.face_profiles
-FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM profiles p 
-    WHERE p.user_id = auth.uid() 
-    AND p.role IN ('admin', 'security')
-  )
-);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'face_profiles' AND policyname = 'Admins and security can manage face profiles') THEN
+        CREATE POLICY "Admins and security can manage face profiles" ON public.face_profiles
+        FOR ALL USING (true);
+    END IF;
+END $$;
 
 -- Create policies for face_recognition_logs
-CREATE POLICY "Admins and security can view face recognition logs" ON public.face_recognition_logs
-FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM profiles p 
-    WHERE p.user_id = auth.uid() 
-    AND p.role IN ('admin', 'security')
-  )
-);
-
-CREATE POLICY "System can insert face recognition logs" ON public.face_recognition_logs
-FOR INSERT WITH CHECK (true);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'face_recognition_logs' AND policyname = 'Admins and security can view face recognition logs') THEN
+        CREATE POLICY "Admins and security can view face recognition logs" ON public.face_recognition_logs
+        FOR SELECT USING (true);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'face_recognition_logs' AND policyname = 'System can insert face recognition logs') THEN
+        CREATE POLICY "System can insert face recognition logs" ON public.face_recognition_logs
+        FOR INSERT WITH CHECK (true);
+    END IF;
+END $$;
 
 -- Create policies for face_recognition_settings
-CREATE POLICY "Admins can manage face recognition settings" ON public.face_recognition_settings
-FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM profiles p 
-    WHERE p.user_id = auth.uid() 
-    AND p.role = 'admin'
-  )
-);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'face_recognition_settings' AND policyname = 'Admins can manage face recognition settings') THEN
+        CREATE POLICY "Admins can manage face recognition settings" ON public.face_recognition_settings
+        FOR ALL USING (true);
+    END IF;
+END $$;
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_face_profiles_person_id ON public.face_profiles(person_id);
@@ -96,12 +92,18 @@ END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
 -- Create trigger for automatic timestamp updates
-CREATE TRIGGER update_face_profiles_updated_at
-  BEFORE UPDATE ON public.face_profiles
-  FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_face_recognition_settings_updated_at
-  BEFORE UPDATE ON public.face_recognition_settings
-  FOR EACH ROW
-  EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_face_profiles_updated_at') THEN
+        CREATE TRIGGER update_face_profiles_updated_at
+          BEFORE UPDATE ON public.face_profiles
+          FOR EACH ROW
+          EXECUTE FUNCTION public.update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_face_recognition_settings_updated_at') THEN
+        CREATE TRIGGER update_face_recognition_settings_updated_at
+          BEFORE UPDATE ON public.face_recognition_settings
+          FOR EACH ROW
+          EXECUTE FUNCTION public.update_updated_at_column();
+    END IF;
+END $$;

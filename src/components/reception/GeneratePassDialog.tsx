@@ -7,7 +7,9 @@ import { QrCode, Download, Printer, Mail } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQRCode } from '@/hooks/useQRCode';
-import QRCodeComponent from 'qrcode';
+import { useEmailNotifications } from '@/hooks/useEmailService';
+import { generateQRCodeImage, qrCodeToBase64 } from '@/utils/qrCodeUtils';
+import qrcode from 'qrcode-generator';
 
 interface GeneratePassDialogProps {
   open: boolean;
@@ -27,6 +29,7 @@ interface VisitRequest {
     full_name: string;
     company: string | null;
     photo_url: string | null;
+    email: string;
   };
   host: {
     full_name: string;
@@ -38,6 +41,7 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const { generateQRCode, loading } = useQRCode();
+  const { sendDigitalPass } = useEmailNotifications();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,7 +63,7 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
           start_time,
           end_time,
           qr_code,
-          visitor:visitor_id(full_name, company, photo_url),
+          visitor:visitor_id(full_name, company, photo_url, email),
           host:host_id(full_name)
         `)
         .eq('id', visitRequestId)
@@ -107,15 +111,42 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
 
   const generateQRCodeImage = async (qrCodeData: string) => {
     try {
-      const dataUrl = await QRCodeComponent.toDataURL(qrCodeData, {
-        width: 256,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
+      const qr = qrcode(0, 'M');
+      qr.addData(qrCodeData);
+      qr.make();
+      
+      // Create canvas and draw QR code
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const moduleCount = qr.getModuleCount();
+      const cellSize = 8;
+      const margin = 16;
+      
+      canvas.width = canvas.height = moduleCount * cellSize + margin * 2;
+      
+      if (ctx) {
+        // Fill background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw QR code
+        ctx.fillStyle = '#000000';
+        for (let row = 0; row < moduleCount; row++) {
+          for (let col = 0; col < moduleCount; col++) {
+            if (qr.isDark(row, col)) {
+              ctx.fillRect(
+                col * cellSize + margin,
+                row * cellSize + margin,
+                cellSize,
+                cellSize
+              );
+            }
+          }
         }
-      });
-      setQrCodeDataUrl(dataUrl);
+        
+        const dataUrl = canvas.toDataURL();
+        setQrCodeDataUrl(dataUrl);
+      }
     } catch (error) {
       console.error('Error generating QR code image:', error);
     }
@@ -234,6 +265,43 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
     printWindow.close();
   };
 
+  const handleEmailPass = async () => {
+    if (!visitRequest || !qrCodeDataUrl) return;
+
+    try {
+      // Convert QR code data URL to base64 for email
+      const qrCodeImage = qrCodeDataUrl.split(',')[1];
+
+      console.log('🔄 Sending digital pass email to:', visitRequest.visitor.email);
+      const digitalPassResult = await sendDigitalPass(visitRequest.visitor.email, {
+        visitorId: visitRequest.id,
+        visitorName: visitRequest.visitor.full_name,
+        hostName: visitRequest.host.full_name,
+        company: visitRequest.visitor.company || 'N/A',
+        visitDate: visitRequest.visit_date,
+        startTime: visitRequest.start_time,
+        endTime: visitRequest.end_time,
+        purpose: visitRequest.purpose,
+        zone: 'Main Building',
+        qrCode: `data:image/png;base64,${qrCodeImage}`,
+        passId: visitRequest.id,
+        validUntil: visitRequest.end_time,
+      });
+      console.log('✅ Digital pass email result:', digitalPassResult);
+
+      toast({
+        title: 'Digital pass sent',
+        description: `Digital pass has been sent to ${visitRequest.visitor.email}`
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error sending digital pass',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  };
+
   if (!visitRequest) {
     return null;
   }
@@ -322,6 +390,10 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
                   <Button onClick={handlePrintPass} variant="outline" className="w-full">
                     <Printer className="mr-2 h-4 w-4" />
                     Print Pass
+                  </Button>
+                  <Button onClick={handleEmailPass} variant="outline" className="w-full">
+                    <Mail className="mr-2 h-4 w-4" />
+                    Email Pass
                   </Button>
                 </>
               )}

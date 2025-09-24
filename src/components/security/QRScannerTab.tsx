@@ -11,6 +11,7 @@ import { useQRCode } from '@/hooks/useQRCode';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { ZoneAccessDialog } from './ZoneAccessDialog';
 
 interface QRScannerTabProps {
   onScanSuccess: () => void;
@@ -47,6 +48,7 @@ export function QRScannerTab({ onScanSuccess }: QRScannerTabProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [zoneAccessDialogOpen, setZoneAccessDialogOpen] = useState(false);
   
   const { scanQRCode } = useQRCode();
   const { toast } = useToast();
@@ -148,6 +150,11 @@ export function QRScannerTab({ onScanSuccess }: QRScannerTabProps) {
         });
         onScanSuccess?.(result);
         setQrCode('');
+        
+        // Show zone access dialog for successful check-ins
+        if (action === 'check_in') {
+          setZoneAccessDialogOpen(true);
+        }
       } else {
         toast({
           title: "Error",
@@ -405,6 +412,13 @@ export function QRScannerTab({ onScanSuccess }: QRScannerTabProps) {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Zone Access Dialog */}
+      <ZoneAccessDialog
+        open={zoneAccessDialogOpen}
+        onOpenChange={setZoneAccessDialogOpen}
+        scanResult={scanResult}
+      />
     </div>
   );
 }

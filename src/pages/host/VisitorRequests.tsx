@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
+  Bell,
   Calendar, 
   Clock, 
   User, 
@@ -42,8 +43,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useEmailNotifications } from '@/hooks/useEmailService';
 import { useRealtimeZoneData } from '@/hooks/useRealtimeZoneData';
 import { supabase } from '@/integrations/supabase/client';
+import { generateQRCodeImage, qrCodeToBase64 } from '@/utils/qrCodeUtils';
 
 interface VisitRequest {
   id: string;
@@ -73,6 +76,7 @@ type DateRange = 'all' | 'today' | 'week' | 'month';
 export default function VisitorRequests() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const { sendVisitApproval, sendHostNotification, sendDigitalPass } = useEmailNotifications();
   
   const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<VisitRequest[]>([]);
@@ -180,19 +184,75 @@ export default function VisitorRequests() {
   const handleApprove = async (requestId: string) => {
     setActionLoading(requestId);
     try {
+      const request = visitRequests.find(r => r.id === requestId);
+      if (!request) throw new Error('Request not found');
+
+      const qrCodeString = `QR_${requestId}_${Date.now()}`;
+
       const { error } = await supabase
         .from('visit_requests')
         .update({ 
           status: 'approved',
-          qr_code: `QR_${requestId}_${Date.now()}` // Generate QR code
+          qr_code: qrCodeString
         })
         .eq('id', requestId);
 
       if (error) throw error;
 
+      // Generate QR code image for emails
+      let qrCodeImage = '';
+      try {
+        qrCodeImage = qrCodeToBase64(qrCodeString);
+      } catch (qrError) {
+        console.error('Failed to generate QR code image:', qrError);
+      }
+
+      // Send approval email notification
+      try {
+        console.log('🔄 Sending approval email to:', request.visitor.email);
+        const approvalResult = await sendVisitApproval(request.visitor.email, {
+          visitorName: request.visitor.full_name,
+          hostName: profile?.full_name || 'Host',
+          visitDate: request.visit_date,
+          startTime: request.start_time,
+          endTime: request.end_time,
+          purpose: request.purpose,
+          zone: 'Main Building', // You might want to fetch actual zone name
+          qrCode: `data:image/png;base64,${qrCodeImage}`, // Use image if available, fallback to string
+          approvedBy: profile?.full_name || 'Host',
+        });
+        console.log('✅ Approval email result:', approvalResult);
+      } catch (emailError) {
+        console.error('❌ Failed to send approval email:', emailError);
+        // Don't fail the approval if email fails
+      }
+
+      // Send digital pass email
+      try {
+        console.log('🔄 Sending digital pass email to:', request.visitor.email);
+        const digitalPassResult = await sendDigitalPass(request.visitor.email, {
+          visitorId: request.visitor.id,
+          visitorName: request.visitor.full_name,
+          hostName: profile?.full_name || 'Host',
+          company: request.visitor.company || 'N/A',
+          visitDate: request.visit_date,
+          startTime: request.start_time,
+          endTime: request.end_time,
+          purpose: request.purpose,
+          zone: 'Main Building',
+          qrCode: `data:image/png;base64,${qrCodeImage}`,
+          passId: `PASS-${Date.now()}`,
+          validUntil: request.end_time,
+        });
+        console.log('✅ Digital pass email result:', digitalPassResult);
+      } catch (emailError) {
+        console.error('❌ Failed to send digital pass email:', emailError);
+        // Don't fail the approval if email fails
+      }
+
       toast({
         title: 'Request approved',
-        description: 'The visitor request has been approved and QR code generated.'
+        description: 'The visitor request has been approved, QR code generated, and digital pass sent via email.'
       });
 
       fetchVisitRequests();
@@ -219,6 +279,9 @@ export default function VisitorRequests() {
 
     setActionLoading(requestId);
     try {
+      const request = visitRequests.find(r => r.id === requestId);
+      if (!request) throw new Error('Request not found');
+
       const { error } = await supabase
         .from('visit_requests')
         .update({ 
@@ -228,6 +291,23 @@ export default function VisitorRequests() {
         .eq('id', requestId);
 
       if (error) throw error;
+
+      // Send rejection email notification
+      try {
+        await sendHostNotification(request.visitor.email, {
+          hostName: profile?.full_name || 'Host',
+          visitorName: request.visitor.full_name,
+          company: request.visitor.company || 'Company',
+          action: 'request',
+          visitDate: request.visit_date,
+          time: request.start_time,
+          zone: 'Main Building',
+          purpose: `Your visit request has been rejected. Reason: ${reason}`,
+        });
+      } catch (emailError) {
+        console.error('Failed to send rejection email:', emailError);
+        // Don't fail the rejection if email fails
+      }
 
       toast({
         title: 'Request rejected',

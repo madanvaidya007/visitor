@@ -26,7 +26,7 @@ export class ZoneSecurityService {
   // Zone Management
   async createZone(zoneData: Omit<SecurityZone, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityZone> {
     const { data, error } = await supabase
-      .from('security_zones')
+      .from('zones')
       .insert([{
         ...zoneData,
         created_at: new Date().toISOString(),
@@ -41,7 +41,7 @@ export class ZoneSecurityService {
 
   async getZones(): Promise<SecurityZone[]> {
     const { data, error } = await supabase
-      .from('security_zones')
+      .from('zones')
       .select(`
         *,
         zone_entry_points(*),
@@ -56,7 +56,7 @@ export class ZoneSecurityService {
 
   async getZoneById(zoneId: string): Promise<SecurityZone | null> {
     const { data, error } = await supabase
-      .from('security_zones')
+      .from('zones')
       .select(`
         *,
         zone_entry_points(*),
@@ -74,7 +74,7 @@ export class ZoneSecurityService {
 
   async updateZone(zoneId: string, updates: Partial<SecurityZone>): Promise<SecurityZone> {
     const { data, error } = await supabase
-      .from('security_zones')
+      .from('zones')
       .update({
         ...updates,
         updated_at: new Date().toISOString()
@@ -89,7 +89,7 @@ export class ZoneSecurityService {
 
   async deleteZone(zoneId: string): Promise<void> {
     const { error } = await supabase
-      .from('security_zones')
+      .from('zones')
       .update({ is_active: false })
       .eq('id', zoneId);
 
@@ -114,15 +114,23 @@ export class ZoneSecurityService {
     return this.mapEntryPointFromDB(data);
   }
 
-  async getEntryPointsByZone(zoneId: string): Promise<ZoneEntryPoint[]> {
-    const { data, error } = await supabase
+  async getEntryPoints(zoneId?: string): Promise<ZoneEntryPoint[]> {
+    let query = supabase
       .from('zone_entry_points')
       .select('*')
-      .eq('zone_id', zoneId)
       .eq('is_active', true);
 
+    if (zoneId) {
+      query = query.eq('zone_id', zoneId);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(`Failed to fetch entry points: ${error.message}`);
     return data.map(this.mapEntryPointFromDB);
+  }
+
+  async getEntryPointsByZone(zoneId: string): Promise<ZoneEntryPoint[]> {
+    return this.getEntryPoints(zoneId);
   }
 
   // Guard Management
@@ -154,6 +162,21 @@ export class ZoneSecurityService {
       .contains('assigned_zones', [zoneId])
       .eq('is_on_duty', true);
 
+    if (error) throw new Error(`Failed to fetch guards: ${error.message}`);
+    return data.map(this.mapGuardFromDB);
+  }
+
+  async getGuards(zoneId?: string): Promise<ZoneGuard[]> {
+    let query = supabase
+      .from('zone_guards')
+      .select('*')
+      .eq('is_on_duty', true);
+
+    if (zoneId) {
+      query = query.contains('assigned_zones', [zoneId]);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(`Failed to fetch guards: ${error.message}`);
     return data.map(this.mapGuardFromDB);
   }
@@ -193,7 +216,7 @@ export class ZoneSecurityService {
         .from('zone_entry_points')
         .select(`
           *,
-          security_zones(*)
+          zones(*)
         `)
         .eq('qr_code_id', qrCodeId)
         .eq('id', entryPointId)
@@ -220,7 +243,7 @@ export class ZoneSecurityService {
           visitorId: '', // Will be filled when visitor scans
           zoneId: entryPoint.zone_id,
           entryPointId: entryPoint.id,
-          accessLevel: entryPoint.security_zones.access_level,
+          accessLevel: entryPoint.zones.access_level,
           validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
         },
         requiresGuardVerification: entryPoint.requires_guard_verification
@@ -260,18 +283,17 @@ export class ZoneSecurityService {
   // Access Logging
   async logZoneAccess(logData: Omit<ZoneAccessLog, 'id'>): Promise<ZoneAccessLog> {
     const { data, error } = await supabase
-      .from('zone_access_logs')
+      .from('zone_entry_logs')
       .insert([{
         zone_id: logData.zoneId,
-        entry_point_id: logData.entryPointId,
         visitor_id: logData.visitorId,
-        guard_id: logData.guardId,
-        access_type: logData.accessType,
+        visit_request_id: logData.visitRequestId,
+        action: logData.accessType, // Map accessType to action
         timestamp: logData.timestamp,
-        qr_code_scanned: logData.qrCodeScanned,
-        verification_status: logData.verificationStatus,
+        scanned_by: logData.guardId,
         notes: logData.notes,
-        metadata: logData.metadata
+        device_id: logData.metadata?.deviceId,
+        location_details: logData.metadata
       }])
       .select()
       .single();
@@ -280,12 +302,24 @@ export class ZoneSecurityService {
     return this.mapAccessLogFromDB(data);
   }
 
-  async getAccessLogs(zoneId?: string, limit: number = 100): Promise<ZoneAccessLog[]> {
+  async getAccessLogs(options?: { zone_id?: string; limit?: number } | string, limit?: number): Promise<ZoneAccessLog[]> {
+    let zoneId: string | undefined;
+    let queryLimit: number = 100;
+
+    // Handle both old and new parameter formats
+    if (typeof options === 'string') {
+      zoneId = options;
+      queryLimit = limit || 100;
+    } else if (options && typeof options === 'object') {
+      zoneId = options.zone_id;
+      queryLimit = options.limit || 100;
+    }
+
     let query = supabase
-      .from('zone_access_logs')
+      .from('zone_entry_logs')
       .select('*')
       .order('timestamp', { ascending: false })
-      .limit(limit);
+      .limit(queryLimit);
 
     if (zoneId) {
       query = query.eq('zone_id', zoneId);
@@ -319,10 +353,18 @@ export class ZoneSecurityService {
   }
 
   // Statistics
-  async getZoneStatistics(): Promise<ZoneStatistics> {
-    const { data, error } = await supabase.rpc('get_zone_statistics');
-    if (error) throw new Error(`Failed to fetch statistics: ${error.message}`);
-    return data;
+  async getZoneStatistics(zoneId?: string): Promise<ZoneStatistics> {
+    if (zoneId) {
+      // Get statistics for specific zone
+      const { data, error } = await supabase.rpc('get_zone_statistics_by_id', { p_zone_id: zoneId });
+      if (error) throw new Error(`Failed to fetch zone statistics: ${error.message}`);
+      return data;
+    } else {
+      // Get overall statistics
+      const { data, error } = await supabase.rpc('get_zone_statistics');
+      if (error) throw new Error(`Failed to fetch statistics: ${error.message}`);
+      return data;
+    }
   }
 
   // Visitor Zone Requests
@@ -359,6 +401,44 @@ export class ZoneSecurityService {
 
     if (error) throw new Error(`Failed to approve request: ${error.message}`);
     return this.mapZoneRequestFromDB(data);
+  }
+
+  async getVisitorZoneRequests(options?: { zone_id?: string; limit?: number }): Promise<VisitorZoneRequest[]> {
+    let query = supabase
+      .from('visitor_zone_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (options?.zone_id) {
+      query = query.contains('requested_zones', [options.zone_id]);
+    }
+
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to fetch visitor zone requests: ${error.message}`);
+    return data.map(this.mapZoneRequestFromDB);
+  }
+
+  async getSecurityAlerts(options?: { zone_id?: string; limit?: number }): Promise<ZoneSecurityAlert[]> {
+    let query = supabase
+      .from('zone_security_alerts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (options?.zone_id) {
+      query = query.eq('zone_id', options.zone_id);
+    }
+
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to fetch security alerts: ${error.message}`);
+    return data.map(this.mapSecurityAlertFromDB);
   }
 
   // Real-time Subscriptions
@@ -457,15 +537,16 @@ export class ZoneSecurityService {
     return {
       id: data.id,
       zoneId: data.zone_id,
-      entryPointId: data.entry_point_id,
+      entryPointId: null, // zone_entry_logs doesn't have entry_point_id
       visitorId: data.visitor_id,
-      guardId: data.guard_id,
-      accessType: data.access_type,
+      visitRequestId: data.visit_request_id,
+      guardId: data.scanned_by,
+      accessType: data.action,
       timestamp: data.timestamp,
-      qrCodeScanned: data.qr_code_scanned,
-      verificationStatus: data.verification_status,
+      qrCodeScanned: true, // Assume true for zone_entry_logs
+      verificationStatus: 'verified', // Assume verified for zone_entry_logs
       notes: data.notes,
-      metadata: data.metadata
+      metadata: data.location_details || {}
     };
   }
 
@@ -497,6 +578,24 @@ export class ZoneSecurityService {
       occupancyRate: data.occupancy_rate,
       visitors: data.visitors || [],
       lastUpdated: data.last_updated
+    };
+  }
+
+  private mapSecurityAlertFromDB(data: any): ZoneSecurityAlert {
+    return {
+      id: data.id,
+      zoneId: data.zone_id,
+      alertType: data.alert_type,
+      severity: data.severity,
+      title: data.title,
+      description: data.description,
+      triggeredBy: data.triggered_by,
+      isResolved: data.is_resolved,
+      resolvedBy: data.resolved_by,
+      resolvedAt: data.resolved_at,
+      metadata: data.metadata || {},
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     };
   }
 }

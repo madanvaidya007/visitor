@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { QrCode, Download, Share2, MapPin, Clock, User, Building, Shield, CheckCircle } from 'lucide-react';
-import QRCode from 'qrcode';
+import qrcode from 'qrcode-generator';
 import { useToast } from '@/hooks/use-toast';
 import { useQRCode } from '@/hooks/useQRCode';
 
@@ -67,16 +67,42 @@ export function DigitalPassDialog({
         return;
       }
 
-      const qrDataUrl = await QRCode.toDataURL(visitRequest.qr_code, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        },
-        errorCorrectionLevel: 'M'
-      });
-      setQrCodeUrl(qrDataUrl);
+      const qr = qrcode(0, 'M');
+      qr.addData(visitRequest.qr_code);
+      qr.make();
+      
+      // Create canvas and draw QR code
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const moduleCount = qr.getModuleCount();
+      const cellSize = 8;
+      const margin = 16;
+      
+      canvas.width = canvas.height = moduleCount * cellSize + margin * 2;
+      
+      if (ctx) {
+        // Fill background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw QR code
+        ctx.fillStyle = '#000000';
+        for (let row = 0; row < moduleCount; row++) {
+          for (let col = 0; col < moduleCount; col++) {
+            if (qr.isDark(row, col)) {
+              ctx.fillRect(
+                col * cellSize + margin,
+                row * cellSize + margin,
+                cellSize,
+                cellSize
+              );
+            }
+          }
+        }
+        
+        const qrDataUrl = canvas.toDataURL();
+        setQrCodeUrl(qrDataUrl);
+      }
     } catch (error) {
       console.error('Error generating QR code:', error);
       toast({

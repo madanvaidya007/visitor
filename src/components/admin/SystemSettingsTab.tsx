@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, Save, Upload, Shield } from 'lucide-react';
+import { Settings, Save, Upload, Shield, Mail, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useEmailService } from '@/hooks/useEmailService';
+import { EmailTestPanel } from './EmailTestPanel';
 
 export function SystemSettingsTab() {
   const [settings, setSettings] = useState({
@@ -25,10 +27,24 @@ export function SystemSettingsTab() {
     working_hours_start: '09:00',
     working_hours_end: '18:00'
   });
+
+  const [emailSettings, setEmailSettings] = useState({
+    enabled: false,
+    api_key: '',
+    sender_name: 'Access Manager',
+    sender_email: 'noreply@company.com',
+    reply_to: 'support@company.com'
+  });
+
   const { toast } = useToast();
+  const { updateSettings, testConfiguration, sendTestEmail, isLoading } = useEmailService();
 
   const handleSettingChange = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleEmailSettingChange = (key: string, value: any) => {
+    setEmailSettings(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSaveSettings = () => {
@@ -37,6 +53,38 @@ export function SystemSettingsTab() {
       title: 'Settings saved',
       description: 'System settings have been updated successfully.'
     });
+  };
+
+  const handleSaveEmailSettings = async () => {
+    try {
+      await updateSettings(emailSettings);
+      toast({
+        title: 'Email settings saved',
+        description: 'Email configuration has been updated successfully.'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error saving email settings',
+        description: 'Failed to update email configuration. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleTestEmail = async () => {
+    try {
+      await sendTestEmail(settings.notification_email);
+      toast({
+        title: 'Test email sent',
+        description: 'Check your inbox for the test email.'
+      });
+    } catch (error) {
+      toast({
+        title: 'Test email failed',
+        description: 'Failed to send test email. Please check your configuration.',
+        variant: 'destructive'
+      });
+    }
   };
 
   return (
@@ -205,6 +253,106 @@ export function SystemSettingsTab() {
         </CardContent>
       </Card>
 
+      {/* Email Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Email Configuration
+          </CardTitle>
+          <CardDescription>Configure email service settings for notifications</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Enable email notifications</Label>
+              <p className="text-sm text-muted-foreground">
+                Send email notifications for visitor invitations, approvals, and alerts
+              </p>
+            </div>
+            <Switch
+              checked={emailSettings.enabled}
+              onCheckedChange={(checked) => handleEmailSettingChange('enabled', checked)}
+            />
+          </div>
+
+          {emailSettings.enabled && (
+            <>
+              <div>
+                <Label htmlFor="api_key">Resend API Key</Label>
+                <Input
+                  id="api_key"
+                  type="password"
+                  value={emailSettings.api_key}
+                  placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  onChange={(e) => handleEmailSettingChange('api_key', e.target.value)}
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Get your API key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Resend Dashboard</a>
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="sender_name">Sender Name</Label>
+                  <Input
+                    id="sender_name"
+                    value={emailSettings.sender_name}
+                    placeholder="Access Manager"
+                    onChange={(e) => handleEmailSettingChange('sender_name', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="sender_email">Sender Email</Label>
+                  <Input
+                    id="sender_email"
+                    type="email"
+                    value={emailSettings.sender_email}
+                    placeholder="noreply@yourdomain.com"
+                    onChange={(e) => handleEmailSettingChange('sender_email', e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Must be a verified domain in Resend
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="reply_to">Reply-To Email</Label>
+                <Input
+                  id="reply_to"
+                  type="email"
+                  value={emailSettings.reply_to}
+                  placeholder="support@yourdomain.com"
+                  onChange={(e) => handleEmailSettingChange('reply_to', e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleSaveEmailSettings} 
+                  disabled={isLoading}
+                  variant="outline"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Email Settings
+                </Button>
+                
+                <Button 
+                  onClick={handleTestEmail} 
+                  disabled={isLoading || !emailSettings.api_key}
+                  variant="outline"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Test Email
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Notifications */}
       <Card>
         <CardHeader>
@@ -239,6 +387,9 @@ export function SystemSettingsTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Testing Panel */}
+      <EmailTestPanel />
 
       {/* Save Button */}
       <div className="flex justify-end">

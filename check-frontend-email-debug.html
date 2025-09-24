@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Email Service Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Frontend Email Service Debug</h1>
+        <p>This page tests the frontend email service directly to identify any issues.</p>
+
+        <div class="test-section info">
+            <h3>📊 Test Results</h3>
+            <div id="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Email Service Tests</h3>
+            <button onclick="testBackendConnection()">Test Backend Connection</button>
+            <button onclick="testEmailConfiguration()">Test Email Configuration</button>
+            <button onclick="testDigitalPassEmail()">Test Digital Pass Email</button>
+            <button onclick="testDirectEmail()">Test Direct Email</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Console Logs</h3>
+            <div id="logs" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let logContainer = document.getElementById('logs');
+        let resultsContainer = document.getElementById('results');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logContainer.textContent += logEntry;
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            console.log(message);
+        }
+
+        function updateResult(test, status, message) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = status === 'success' ? 'success' : 'error';
+            resultDiv.innerHTML = `<strong>${test}:</strong> ${status === 'success' ? '✅' : '❌'} ${message}`;
+            resultsContainer.appendChild(resultDiv);
+        }
+
+        function clearLogs() {
+            logContainer.textContent = '';
+            resultsContainer.innerHTML = '';
+        }
+
+        async function testBackendConnection() {
+            log('🔗 Testing backend connection...');
+            try {
+                const response = await fetch('http://localhost:3001/health');
+                const result = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Backend connection successful');
+                    updateResult('Backend Connection', 'success', 'Server is running');
+                } else {
+                    log('❌ Backend connection failed');
+                    updateResult('Backend Connection', 'error', 'Server not responding');
+                }
+            } catch (error) {
+                log(`❌ Backend connection error: ${error.message}`);
+                updateResult('Backend Connection', 'error', error.message);
+            }
+        }
+
+        async function testEmailConfiguration() {
+            log('📧 Testing email configuration...');
+            try {
+                const response = await fetch('http://localhost:3001/api/email/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log('✅ Email configuration is valid');
+                    updateResult('Email Configuration', 'success', 'SMTP settings are working');
+                } else {
+                    log(`❌ Email configuration failed: ${result.error}`);
+                    updateResult('Email Configuration', 'error', result.error);
+                }
+            } catch (error) {
+                log(`❌ Email configuration test error: ${error.message}`);
+                updateResult('Email Configuration', 'error', error.message);
+            }
+        }
+
+        async function testDigitalPassEmail() {
+            log('🎫 Testing digital pass email...');
+            try {
+                const passData = {
+                    to: 'coreproject007@gmail.com',
+                    passData: {
+                        visitorId: 'frontend-test-001',
+                        visitorName: 'Frontend Test User',
+                        hostName: 'Test Host',
+                        company: 'Test Company',
+                        visitDate: '2024-01-25',
+                        startTime: '09:00',
+                        endTime: '17:00',
+                        purpose: 'Frontend Debug Test',
+                        zone: 'Debug Zone',
+                        qrCode: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+                        passId: 'FRONTEND-TEST-001',
+                        validUntil: '17:00'
+                    }
+                };
+
+                log('📤 Sending digital pass email request...');
+                const response = await fetch('http://localhost:3001/api/email/digital-pass', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(passData),
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ Digital pass email sent successfully`);
+                    log(`📧 Message ID: ${result.messageId}`);
+                    updateResult('Digital Pass Email', 'success', `Sent with ID: ${result.messageId}`);
+                } else {
+                    log(`❌ Digital pass email failed: ${result.error}`);
+                    updateResult('Digital Pass Email', 'error', result.error);
+                }
+            } catch (error) {
+                log(`❌ Digital pass email error: ${error.message}`);
+                updateResult('Digital Pass Email', 'error', error.message);
+            }
+        }
+
+        async function testDirectEmail() {
+            log('📬 Testing direct email...');
+            try {
+                const response = await fetch('http://localhost:3001/api/email/test-send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        to: 'coreproject007@gmail.com'
+                    }),
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ Direct email sent successfully`);
+                    log(`📧 Message ID: ${result.messageId}`);
+                    updateResult('Direct Email', 'success', `Sent with ID: ${result.messageId}`);
+                } else {
+                    log(`❌ Direct email failed: ${result.error}`);
+                    updateResult('Direct Email', 'error', result.error);
+                }
+            } catch (error) {
+                log(`❌ Direct email error: ${error.message}`);
+                updateResult('Direct Email', 'error', error.message);
+            }
+        }
+
+        // Capture console errors
+        window.addEventListener('error', function(e) {
+            log(`❌ JavaScript Error: ${e.message} at ${e.filename}:${e.lineno}`);
+        });
+
+        // Initial load test
+        window.addEventListener('load', function() {
+            log('🚀 Frontend Email Debug Page Loaded');
+            log('📝 Click the test buttons above to run diagnostics');
+        });
+    </script>
+</body>
+</html>

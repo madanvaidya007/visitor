@@ -373,38 +373,10 @@ export class CCTVIntegrationService {
   async getCameras(): Promise<CCTVCamera[]> {
     console.log('Getting available CCTV cameras...');
     
-    // Mock camera data for now
-    const mockCameras: CCTVCamera[] = [
-      {
-        id: 'cam_001',
-        name: 'Main Entrance',
-        location: 'Building A - Main Door',
-        streamUrl: 'rtsp://camera1.local/stream',
-        isActive: true,
-        resolution: { width: 1920, height: 1080 },
-        fps: 30
-      },
-      {
-        id: 'cam_002',
-        name: 'Reception Area',
-        location: 'Building A - Reception',
-        streamUrl: 'rtsp://camera2.local/stream',
-        isActive: true,
-        resolution: { width: 1280, height: 720 },
-        fps: 25
-      },
-      {
-        id: 'cam_003',
-        name: 'Conference Room',
-        location: 'Building A - Conference',
-        streamUrl: 'rtsp://camera3.local/stream',
-        isActive: false,
-        resolution: { width: 1920, height: 1080 },
-        fps: 30
-      }
-    ];
-
-    return mockCameras;
+    // TODO: Implement actual CCTV camera integration
+    // This would typically connect to your CCTV system's API
+    // For now, return empty array until integration is implemented
+    return [];
   }
 
   async initialize(): Promise<void> {

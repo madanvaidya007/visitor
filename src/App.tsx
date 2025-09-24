@@ -21,6 +21,16 @@ import SecurityAlerts from "./pages/security/SecurityAlerts";
 import Evacuation from "./pages/security/Evacuation";
 import GuardDashboard from "./pages/guard/GuardDashboard";
 import { FaceRecognitionDashboard } from "./components/FaceRecognition/FaceRecognitionDashboard";
+import { AdminDashboard } from "./components/dashboard/AdminDashboard";
+import QuickRegistration from "./pages/reception/QuickRegistration";
+import VisitorQueue from "./pages/reception/VisitorQueue";
+import GeneratePass from "./pages/reception/GeneratePass";
+import VisitorSearch from "./pages/reception/VisitorSearch";
+import ZoneManagement from "./pages/reception/ZoneManagement";
+import UserManagement from "./pages/reception/UserManagement";
+import Reports from "./pages/reception/Reports";
+import Blacklist from "./pages/reception/Blacklist";
+import Analytics from "./pages/reception/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -85,49 +95,54 @@ const App = () => (
           {/* Reception Routes */}
           <Route path="/quick-registration" element={
             <DashboardLayout>
-              <div>Quick Registration Page - Coming Soon</div>
+              <QuickRegistration />
             </DashboardLayout>
           } />
           <Route path="/visitor-queue" element={
             <DashboardLayout>
-              <div>Visitor Queue Page - Coming Soon</div>
+              <VisitorQueue />
             </DashboardLayout>
           } />
           <Route path="/generate-pass" element={
             <DashboardLayout>
-              <div>Generate Pass Page - Coming Soon</div>
+              <GeneratePass />
             </DashboardLayout>
           } />
           <Route path="/visitor-search" element={
             <DashboardLayout>
-              <div>Visitor Search Page - Coming Soon</div>
+              <VisitorSearch />
+            </DashboardLayout>
+          } />
+          <Route path="/zone-management" element={
+            <DashboardLayout>
+              <ZoneManagement />
             </DashboardLayout>
           } />
           
           {/* Admin Routes */}
           <Route path="/users" element={
             <DashboardLayout>
-              <div>User Management Page - Coming Soon</div>
+              <UserManagement />
             </DashboardLayout>
           } />
           <Route path="/reports" element={
             <DashboardLayout>
-              <div>Reports Page - Coming Soon</div>
+              <Reports />
             </DashboardLayout>
           } />
           <Route path="/settings" element={
             <DashboardLayout>
-              <div>System Settings Page - Coming Soon</div>
+              <AdminDashboard />
             </DashboardLayout>
           } />
           <Route path="/blacklist" element={
             <DashboardLayout>
-              <div>Blacklist Page - Coming Soon</div>
+              <Blacklist />
             </DashboardLayout>
           } />
           <Route path="/analytics" element={
             <DashboardLayout>
-              <div>Analytics Page - Coming Soon</div>
+              <Analytics />
             </DashboardLayout>
           } />
           

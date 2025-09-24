@@ -371,36 +371,21 @@ const Evacuation = () => {
       };
     });
 
-    const mockPersonnel: EvacuationPersonnel[] = [
-      {
-        id: '1',
-        name: 'John Smith',
-        role: 'Security Chief',
-        status: 'available',
-        contact: '+1-555-0101',
-        location: 'Security Office'
-      },
-      {
-        id: '2',
-        name: 'Sarah Johnson',
-        role: 'Floor Warden',
-        status: 'available',
-        contact: '+1-555-0102',
-        location: 'Floor 2'
-      },
-      {
-        id: '3',
-        name: 'Mike Davis',
-        role: 'Emergency Coordinator',
-        status: 'available',
-        contact: '+1-555-0103',
-        location: 'Main Lobby'
-      }
-    ];
+    // TODO: Implement actual personnel fetching from database
+    // const { data: personnelData, error } = await supabase
+    //   .from('emergency_personnel')
+    //   .select('*')
+    //   .eq('is_active', true);
+    
+    // if (error) throw error;
+    // setPersonnel(personnelData || []);
+    
+    // For now, start with empty personnel list until database implementation
+    const personnel: EvacuationPersonnel[] = [];
 
     setEvacuationStatus(initialStatus);
     setZoneStatuses(zoneEvacuationStatuses);
-    setPersonnel(mockPersonnel);
+    setPersonnel(personnel);
   };
 
   const initiateEvacuation = async () => {

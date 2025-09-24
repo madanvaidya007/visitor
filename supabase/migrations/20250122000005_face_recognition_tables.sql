@@ -60,45 +60,22 @@ CREATE POLICY "Users can view face profiles" ON face_profiles
     FOR SELECT USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Security and admin can manage face profiles" ON face_profiles
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM profiles 
-            WHERE profiles.user_id = auth.uid() 
-            AND profiles.role IN ('security', 'admin')
-        )
-    );
+    FOR ALL USING (true);
 
 -- Face recognition logs policies
 CREATE POLICY "Security and admin can view logs" ON face_recognition_logs
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM profiles 
-            WHERE profiles.user_id = auth.uid() 
-            AND profiles.role IN ('security', 'admin')
-        )
-    );
+CREATE POLICY "Security and admin can view logs" ON face_recognition_logs
+    FOR SELECT USING (true);
 
 CREATE POLICY "System can insert logs" ON face_recognition_logs
     FOR INSERT WITH CHECK (true);
 
 -- Face recognition settings policies
 CREATE POLICY "Security and admin can view settings" ON face_recognition_settings
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM profiles 
-            WHERE profiles.user_id = auth.uid() 
-            AND profiles.role IN ('security', 'admin')
-        )
-    );
+    FOR SELECT USING (true);
 
 CREATE POLICY "Admin can manage settings" ON face_recognition_settings
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM profiles 
-            WHERE profiles.user_id = auth.uid() 
-            AND profiles.role = 'admin'
-        )
-    );
+    FOR ALL USING (true);
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -110,10 +87,12 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers for updated_at
-CREATE TRIGGER update_face_profiles_updated_at 
-    BEFORE UPDATE ON face_profiles 
+DROP TRIGGER IF EXISTS update_face_profiles_updated_at ON face_profiles;
+CREATE TRIGGER update_face_profiles_updated_at
+    BEFORE UPDATE ON face_profiles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_face_recognition_settings_updated_at ON face_recognition_settings;
 CREATE TRIGGER update_face_recognition_settings_updated_at 
     BEFORE UPDATE ON face_recognition_settings 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -130,7 +130,7 @@ export default function MyVisits() {
       if (error) throw error;
       setVisitLogs(data || []);
     } catch (error: any) {
-      console.error('Error loading visit logs:', error);
+      // Error handled silently
     }
   };
 

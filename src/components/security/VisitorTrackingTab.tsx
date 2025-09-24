@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Search, MapPin, Clock, User, Building, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 
 interface VisitorLocation {
@@ -40,6 +41,7 @@ export function VisitorTrackingTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const { toast } = useToast();
+  const { sendCapacityAlert, sendOverdueVisitorAlert } = useAdminNotifications();
 
   useEffect(() => {
     fetchActiveVisitors();
@@ -134,6 +136,14 @@ export function VisitorTrackingTab() {
       });
 
       setVisitors(visitorData);
+      
+      // Check for overdue visitors and send admin alerts
+      const overdueVisitors = visitorData.filter(v => v.status === 'overdue');
+      if (overdueVisitors.length > 0) {
+        overdueVisitors.forEach(visitor => {
+          sendOverdueVisitorAlert(visitor.visitor_name, visitor.current_zone, visitor.host_name);
+        });
+      }
     } catch (error: any) {
       toast({
         title: 'Error fetching visitor data',
@@ -152,7 +162,7 @@ export function VisitorTrackingTab() {
         .select(`
           zone_id,
           entered_at,
-          zone:zone_id(name)
+          zone:zone_id(name, max_capacity)
         `)
         .is('exited_at', null)
         .order('entered_at', { ascending: false });
@@ -165,6 +175,7 @@ export function VisitorTrackingTab() {
       (data || []).forEach(session => {
         const zoneId = session.zone_id;
         const zoneName = (session.zone as any)?.name || 'Unknown Zone';
+        const maxCapacity = (session.zone as any)?.max_capacity || 0;
         
         if (zoneMap.has(zoneId)) {
           const existing = zoneMap.get(zoneId)!;
@@ -183,7 +194,23 @@ export function VisitorTrackingTab() {
         }
       });
 
-      setZoneActivity(Array.from(zoneMap.values()));
+      const zoneActivityData = Array.from(zoneMap.values());
+      setZoneActivity(zoneActivityData);
+      
+      // Check for capacity alerts
+      zoneActivityData.forEach(zone => {
+        // Get zone capacity from database
+        supabase
+          .from('zones')
+          .select('max_capacity')
+          .eq('id', zone.zone_id)
+          .single()
+          .then(({ data: zoneData }) => {
+            if (zoneData?.max_capacity && zone.visitor_count >= zoneData.max_capacity * 0.9) {
+              sendCapacityAlert(zone.zone_name, zone.visitor_count, zoneData.max_capacity);
+            }
+          });
+      });
     } catch (error: any) {
       console.error('Error fetching zone activity:', error);
     }
@@ -198,6 +225,9 @@ export function VisitorTrackingTab() {
   };
 
   const getInitials = (name: string) => {
+    if (!name || typeof name !== 'string') {
+      return 'NA';
+    }
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
