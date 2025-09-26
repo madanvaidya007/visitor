@@ -1,0 +1,37 @@
+/* Progress bar styles for dynamic width calculations */
+
+/* Zone occupancy progress bars */
+.zone-occupancy-bar {
+  transition: width 0.3s ease-in-out;
+}
+
+/* Visit trend progress bars */
+.visit-trend-bar {
+  transition: width 0.3s ease-in-out;
+}
+
+/* Security dashboard progress bars */
+.security-dashboard-bar {
+  transition: width 0.3s ease-in-out;
+}
+
+/* Face recognition confidence bars */
+.confidence-bar {
+  transition: width 0.3s ease-in-out;
+}
+
+/* Reports visualization bars */
+.report-bar {
+  transition: height 0.3s ease-in-out;
+  min-height: 4px;
+}
+
+/* Hidden canvas elements */
+.hidden-canvas {
+  display: none;
+}
+
+/* Pointer events disabled */
+.no-pointer-events {
+  pointer-events: none;
+}

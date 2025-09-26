@@ -31,6 +31,7 @@ import UserManagement from "./pages/reception/UserManagement";
 import Reports from "./pages/reception/Reports";
 import Blacklist from "./pages/reception/Blacklist";
 import Analytics from "./pages/reception/Analytics";
+import FileUploadTest from "./pages/test/FileUploadTest";
 
 const queryClient = new QueryClient();
 
@@ -182,6 +183,13 @@ const App = () => (
           <Route path="/guard-dashboard" element={
             <DashboardLayout>
               <GuardDashboard />
+            </DashboardLayout>
+          } />
+          
+          {/* Test Routes */}
+          <Route path="/test/file-upload" element={
+            <DashboardLayout>
+              <FileUploadTest />
             </DashboardLayout>
           } />
           

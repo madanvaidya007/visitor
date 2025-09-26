@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Shield, 
   Calendar, 
@@ -13,8 +15,12 @@ import {
   AlertTriangle,
   Building,
   Eye,
-  Key
+  Key,
+  Home,
+  Building2,
+  Scan
 } from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
 import { UserRole } from '@/hooks/useAuth';
 
 interface DashboardSidebarProps {
@@ -92,9 +98,9 @@ export function DashboardSidebar({ userRole }: DashboardSidebarProps) {
       case 'visitor': return <Users className="h-5 w-5" />;
       case 'host': return <Building className="h-5 w-5" />;
       case 'reception': return <Key className="h-5 w-5" />;
-      case 'admin': return <Shield className="h-5 w-5" />;
+      case 'admin': return <CustomLogo className="h-5 w-5" />;
       case 'security': return <Eye className="h-5 w-5" />;
-      default: return <Shield className="h-5 w-5" />;
+      default: return <CustomLogo className="h-5 w-5" />;
     }
   };
 
@@ -104,7 +110,7 @@ export function DashboardSidebar({ userRole }: DashboardSidebarProps) {
         {/* Logo/Brand */}
         <div className="flex items-center gap-3 mb-8">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Shield className="h-4 w-4 text-primary-foreground" />
+            <CustomLogo className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
             <h2 className="font-semibold text-lg">Access Manager</h2>

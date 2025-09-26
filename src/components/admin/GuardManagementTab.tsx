@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Shield, UserPlus, Edit, Trash2, Clock, MapPin, Phone, Mail } from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useRealtimeZoneData } from '@/hooks/useRealtimeZoneData';
@@ -409,7 +410,7 @@ export function GuardManagementTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
+            <CustomLogo className="h-5 w-5" />
             Security Guards ({guards.length})
           </CardTitle>
           <CardDescription>

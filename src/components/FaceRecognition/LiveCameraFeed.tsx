@@ -1,20 +1,37 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { 
   Camera, 
-  Square, 
   Play, 
   Pause, 
-  Maximize2, 
-  AlertTriangle,
-  Users,
-  Eye
+  Square, 
+  Settings, 
+  Users, 
+  Eye, 
+  AlertTriangle, 
+  CheckCircle, 
+  XCircle,
+  Activity,
+  Zap,
+  RefreshCw,
+  Monitor,
+  Grid3X3,
+  Maximize,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
-import { FaceRecognitionService } from '@/services/faceRecognition';
-import { CCTVIntegrationService } from '@/services/cctvIntegration';
+import { toast } from 'sonner';
+import { faceRecognitionService } from '@/services/faceRecognition';
+import { FaceMatch, CameraConfig } from '@/types/faceRecognitionTypes';
+import '../../styles/progress-bars.css';
 
 interface CameraStatus {
   id: string;
@@ -427,8 +444,7 @@ export const LiveCameraFeed: React.FC<LiveCameraFeedProps> = ({
                 ref={el => {
                   if (el) canvasRefs.current[mainCamera] = el;
                 }}
-                className="absolute inset-0 w-full h-full"
-                style={{ pointerEvents: 'none' }}
+                className="absolute inset-0 w-full h-full no-pointer-events"
               />
             </div>
           )}

@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import '../../styles/progress-bars.css';
 import { 
   MapPin, 
   Users, 
@@ -67,6 +68,14 @@ interface Zone {
   created_at: string;
   updated_at: string;
   current_occupancy?: number;
+  // Additional properties from SecurityZone for compatibility
+  location?: string;
+  floor?: string;
+  building?: string;
+  capacity?: number;
+  currentOccupancy?: number;
+  isActive?: boolean;
+  accessLevel?: 'public' | 'restricted' | 'high_security' | 'executive';
 }
 
 interface ZoneAccess {
@@ -151,7 +160,7 @@ export default function ZoneAccess() {
   const stats = {
     total_zones: realtimeData.statistics?.totalZones || 0,
     active_zones: realtimeData.statistics?.activeZones || 0,
-    restricted_zones: realtimeData.statistics?.totalZones || 0, // Using totalZones as fallback since there's no restrictedZones property
+    restricted_zones: realtimeData.statistics?.restrictedZones || 0,
     current_visitors: realtimeData.statistics?.visitorsInZones || 0
   };
 
@@ -184,10 +193,10 @@ export default function ZoneAccess() {
     // Use real-time zones data if available, otherwise fetch from database
     if (realtimeData.zones && realtimeData.zones.length > 0) {
       const zonesWithOccupancy = realtimeData.zones.map(zone => {
-        const occupancy = realtimeData.occupancy.find(occ => occ.zone_id === zone.id);
+        const occupancy = realtimeData.occupancy.find(occ => occ.zoneId === zone.id);
         return {
           ...zone,
-          current_occupancy: occupancy?.current_count || 0
+          current_occupancy: occupancy?.currentCount || 0
         };
       });
       setZones(zonesWithOccupancy);
@@ -204,10 +213,10 @@ export default function ZoneAccess() {
     
     // Merge zones with real-time occupancy data
     const zonesWithOccupancy = (data || []).map(zone => {
-      const occupancy = realtimeData.occupancy.find(occ => occ.zone_id === zone.id);
+      const occupancy = realtimeData.occupancy.find(occ => occ.zoneId === zone.id);
       return {
         ...zone,
-        current_occupancy: occupancy?.current_count || 0
+        current_occupancy: occupancy?.currentCount || 0
       };
     });
     
@@ -457,6 +466,56 @@ export default function ZoneAccess() {
     setShowAccessDialog(true);
   };
 
+  // Show loading state
+  if (loading && zones.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-semibold">Loading Zone Data</h3>
+          <p className="text-muted-foreground">Please wait while we fetch zone information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (realtimeError) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Zone Access Management</h1>
+            <p className="text-muted-foreground">Manage facility zones and visitor access permissions</p>
+          </div>
+          <Button onClick={fetchData} variant="outline" disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+        
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-2">
+              <p className="font-medium">Failed to load zone data</p>
+              <p className="text-sm">{realtimeError}</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={fetchData}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                Try Again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -640,10 +699,10 @@ export default function ZoneAccess() {
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              occupancyStatus.status === 'Critical' ? 'bg-red-500' :
-                              occupancyStatus.status === 'High' ? 'bg-yellow-500' :
+                          <div 
+                            className={`zone-occupancy-bar h-2 rounded-full ${
+                              occupancyStatus.status === 'Critical' ? 'bg-red-500' : 
+                              occupancyStatus.status === 'High' ? 'bg-yellow-500' : 
                               occupancyStatus.status === 'Moderate' ? 'bg-blue-500' : 'bg-green-500'
                             }`}
                             style={{
@@ -920,22 +979,22 @@ export default function ZoneAccess() {
                   ) : (
                     <div className="space-y-4">
                       {realtimeData.occupancy.map((occupancy) => {
-                        const zone = zones.find(z => z.id === occupancy.zone_id);
+                        const zone = zones.find(z => z.id === occupancy.zoneId);
                         if (!zone) return null;
                         
-                        const occupancyPercentage = occupancy.max_capacity 
-                          ? (occupancy.current_count / occupancy.max_capacity) * 100 
+                        const occupancyPercentage = occupancy.maxCapacity 
+                          ? (occupancy.currentCount / occupancy.maxCapacity) * 100 
                           : 0;
                         
                         return (
-                          <div key={occupancy.id} className="space-y-2">
+                          <div key={occupancy.zoneId} className="space-y-2">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 {getZoneTypeIcon(zone.zone_type)}
                                 <span className="font-medium text-sm">{zone.name}</span>
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                {occupancy.current_count}/{occupancy.max_capacity || '∞'}
+                                {occupancy.currentCount}/{occupancy.maxCapacity || '∞'}
                               </div>
                             </div>
                             {occupancy.max_capacity && (
@@ -1029,9 +1088,9 @@ export default function ZoneAccess() {
                               size="sm"
                               variant="outline"
                               onClick={() => logZoneAccess(
-                                session.zone_id,
-                                session.visitor_id,
-                                session.visit_request_id,
+                                session.requestedZones[0] || '', // Use first requested zone
+                                session.visitorId,
+                                session.id, // Use session id as visit_request_id
                                 'exit',
                                 profile?.id,
                                 undefined,

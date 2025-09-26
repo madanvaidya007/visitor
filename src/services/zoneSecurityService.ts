@@ -317,7 +317,23 @@ export class ZoneSecurityService {
 
     let query = supabase
       .from('zone_entry_logs')
-      .select('*')
+      .select(`
+        *,
+        visitor:profiles!zone_entry_logs_visitor_id_fkey(
+          id,
+          full_name,
+          email,
+          phone,
+          company,
+          photo_url
+        ),
+        zone:zones!zone_entry_logs_zone_id_fkey(
+          id,
+          name,
+          zone_type,
+          description
+        )
+      `)
       .order('timestamp', { ascending: false })
       .limit(queryLimit);
 
@@ -406,7 +422,23 @@ export class ZoneSecurityService {
   async getVisitorZoneRequests(options?: { zone_id?: string; limit?: number }): Promise<VisitorZoneRequest[]> {
     let query = supabase
       .from('visitor_zone_requests')
-      .select('*')
+      .select(`
+        *,
+        visitor:profiles!visitor_zone_requests_visitor_id_fkey(
+          id,
+          full_name,
+          email,
+          phone,
+          company,
+          photo_url
+        ),
+        zones!inner(
+          id,
+          name,
+          zone_type,
+          description
+        )
+      `)
       .order('created_at', { ascending: false });
 
     if (options?.zone_id) {
@@ -546,7 +578,12 @@ export class ZoneSecurityService {
       qrCodeScanned: true, // Assume true for zone_entry_logs
       verificationStatus: 'verified', // Assume verified for zone_entry_logs
       notes: data.notes,
-      metadata: data.location_details || {}
+      metadata: data.location_details || {},
+      // Add joined data for compatibility
+      visitor: data.visitor,
+      zone: data.zone,
+      // Add compatibility property for ZoneAccess.tsx
+      action: data.action
     };
   }
 
@@ -566,7 +603,13 @@ export class ZoneSecurityService {
       qrCode: data.qr_code,
       accessPath: data.access_path || [],
       createdAt: data.created_at,
-      updatedAt: data.updated_at
+      updatedAt: data.updated_at,
+      // Add joined data
+      visitor: data.visitor,
+      zones: data.zones || [],
+      // Add compatibility properties for ZoneAccess.tsx
+      zone: data.zones?.[0] || null,
+      entered_at: data.valid_from
     };
   }
 

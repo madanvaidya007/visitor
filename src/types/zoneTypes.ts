@@ -70,6 +70,23 @@ export interface ZoneAccessLog {
     location?: { lat: number; lng: number };
     confidence?: number;
   };
+  // Joined data for display
+  visitor?: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    photo_url?: string;
+  };
+  zone?: {
+    id: string;
+    name: string;
+    zone_type: string;
+    description?: string;
+  };
+  // Compatibility property for ZoneAccess.tsx
+  action?: 'entry' | 'exit' | 'denied' | 'emergency';
 }
 
 export interface VisitorZoneRequest {
@@ -88,6 +105,29 @@ export interface VisitorZoneRequest {
   accessPath?: string[]; // ordered list of zones visitor can access
   createdAt: string;
   updatedAt: string;
+  // Joined data from database
+  visitor?: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    photo_url?: string;
+  };
+  zones?: {
+    id: string;
+    name: string;
+    zone_type: string;
+    description?: string;
+  }[];
+  // Compatibility properties for ZoneAccess.tsx
+  zone?: {
+    id: string;
+    name: string;
+    zone_type: string;
+    description?: string;
+  };
+  entered_at?: string;
 }
 
 export interface ZoneOccupancy {
@@ -133,6 +173,8 @@ export interface ZoneStatistics {
   pendingRequests: number;
   securityAlerts: number;
   averageOccupancy: number;
+  // Add missing property for ZoneAccess.tsx compatibility
+  restrictedZones?: number;
   zoneUtilization: Array<{
     zoneId: string;
     zoneName: string;

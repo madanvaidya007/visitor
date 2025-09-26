@@ -1,13 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { QrCode, Download, Share2, MapPin, Clock, User, Building, Shield, CheckCircle } from 'lucide-react';
-import qrcode from 'qrcode-generator';
-import { useToast } from '@/hooks/use-toast';
-import { useQRCode } from '@/hooks/useQRCode';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  Download, 
+  Share2, 
+  QrCode, 
+  Calendar, 
+  Clock, 
+  MapPin, 
+  User, 
+  Building, 
+  Shield,
+  CheckCircle,
+  AlertTriangle,
+  Copy,
+  Mail,
+  Phone,
+  AlertCircle,
+  X,
+  Printer
+} from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { QRCodeSVG } from 'qrcode.react';
+import { VisitRequest } from '@/types/visitTypes';
+import '../../styles/progress-bars.css';
 
 interface VisitRequest {
   id: string;
@@ -257,7 +279,7 @@ export function DigitalPassDialog({
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-600" />
+              <CustomLogo className="h-5 w-5 text-blue-600" />
               Digital Visitor Pass
             </DialogTitle>
             <DialogDescription>
@@ -273,7 +295,7 @@ export function DigitalPassDialog({
                   {/* Header */}
                   <div className="text-center mb-4">
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <Shield className="h-6 w-6 text-blue-600" />
+                      <CustomLogo className="h-6 w-6 text-blue-600" />
                       <span className="font-bold text-lg text-blue-900">VISITOR MANAGEMENT SYSTEM</span>
                     </div>
                     <Badge className={`${getStatusColor(visitRequest.status)} border`}>
@@ -330,7 +352,7 @@ export function DigitalPassDialog({
                     </div>
                     {visitRequest.zones && visitRequest.zones.length > 0 && (
                       <div className="flex items-start gap-2 text-sm">
-                        <Shield className="h-4 w-4 text-blue-600 mt-0.5" />
+                        <CustomLogo className="h-4 w-4 text-blue-600 mt-0.5" />
                         <span className="font-medium">Authorized Zones:</span>
                         <div className="flex flex-wrap gap-1">
                           {visitRequest.zones.map((zone, index) => (
@@ -392,7 +414,7 @@ export function DigitalPassDialog({
       </Dialog>
 
       {/* Hidden canvas for pass generation */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <canvas ref={canvasRef} className="hidden-canvas" />
     </>
   );
 }

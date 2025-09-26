@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import '../../styles/progress-bars.css';
 import { 
   Calendar, 
   Clock, 
@@ -796,7 +797,7 @@ export default function MyVisitors() {
                           <div className="flex items-center gap-2">
                             <div className="w-20 bg-muted rounded-full h-2">
                               <div 
-                                className="bg-primary h-2 rounded-full" 
+                                className="visit-trend-bar bg-primary h-2 rounded-full" 
                                 style={{ 
                                   width: `${Math.max(10, (trend.count / Math.max(...stats.visitTrends.map(t => t.count))) * 100)}%` 
                                 }}

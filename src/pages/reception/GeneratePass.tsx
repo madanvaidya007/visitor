@@ -28,7 +28,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
-import QRCode from 'qrcode';
+import qrcode from 'qrcode-generator';
 import { LegacyVisitRequest as VisitRequest, GeneratedPass } from '@/types/visitTypes';
 
 export default function GeneratePass() {
@@ -160,13 +160,109 @@ export default function GeneratePass() {
     setFilteredRequests(filtered);
   };
 
+  // Test QR code generation function - can be called from browser console
+  (window as any).testQRGeneration = () => {
+    const testData = JSON.stringify({
+      visitor_name: "Test User",
+      host_name: "Test Host",
+      visit_date: "2025-01-25",
+      start_time: "10:00",
+      end_time: "11:00",
+      pass_id: "TEST-12345"
+    });
+    
+    const qrResult = generateQRCode(testData);
+    console.log('Test QR generation result:', qrResult ? 'SUCCESS' : 'FAILED');
+    console.log('QR data length:', qrResult.length);
+    console.log('QR data preview:', qrResult.substring(0, 50) + '...');
+    
+    // Create a test image to verify it displays
+    if (qrResult) {
+      const img = document.createElement('img');
+      img.src = qrResult;
+      img.style.position = 'fixed';
+      img.style.top = '10px';
+      img.style.right = '10px';
+      img.style.zIndex = '9999';
+      img.style.border = '2px solid red';
+      img.style.background = 'white';
+      document.body.appendChild(img);
+      
+      setTimeout(() => {
+        document.body.removeChild(img);
+      }, 5000);
+      
+      console.log('Test QR code displayed for 5 seconds');
+    }
+    
+    return qrResult;
+  };
+
+  // Add a manual test button for debugging
+  const handleManualTest = () => {
+    const testResult = (window as any).testQRGeneration();
+    if (testResult) {
+      toast({
+        title: 'QR Test Success',
+        description: 'QR code generated successfully! Check console for details.',
+      });
+    } else {
+      toast({
+        title: 'QR Test Failed',
+        description: 'QR code generation failed! Check console for errors.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const generateQRCode = (data: string): string => {
     try {
-      // Simple QR code generation - in production, use a proper QR code library
-      const qr = require('qrcode-generator')(4, 'L');
+      // Create QR code with proper settings
+      const qr = qrcode(0, 'M'); // Let library choose optimal type
       qr.addData(data);
       qr.make();
-      return qr.createDataURL(4);
+      
+      // Create canvas with proper dimensions
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        console.error('Could not get canvas context');
+        return '';
+      }
+      
+      const moduleCount = qr.getModuleCount();
+      const cellSize = 8; // Standard cell size
+      const margin = 16; // Standard margin
+      
+      // Set canvas size
+      const canvasSize = moduleCount * cellSize + margin * 2;
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      
+      // Fill white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvasSize, canvasSize);
+      
+      // Draw QR code modules in black
+      ctx.fillStyle = '#000000';
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            ctx.fillRect(
+              col * cellSize + margin,
+              row * cellSize + margin,
+              cellSize,
+              cellSize
+            );
+          }
+        }
+      }
+      
+      // Return high-quality PNG data URL
+      const dataURL = canvas.toDataURL('image/png', 1.0);
+      console.log('QR code generated successfully, length:', dataURL.length);
+      return dataURL;
     } catch (error) {
       console.error('Error generating QR code:', error);
       return '';
@@ -189,6 +285,11 @@ export default function GeneratePass() {
       };
 
       const qrCodeData = generateQRCode(JSON.stringify(passData));
+      
+      // Debug logging
+      console.log('Pass data for QR:', passData);
+      console.log('QR code data generated:', qrCodeData ? 'Success' : 'Failed');
+      console.log('QR code length:', qrCodeData.length);
 
       const { error } = await supabase
         .from('visit_requests')
@@ -253,40 +354,106 @@ export default function GeneratePass() {
   };
 
   const printPass = (pass: GeneratedPass) => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Visitor Pass - ${pass.pass_number}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .pass { width: 400px; padding: 20px; border: 2px solid #333; }
-              .qr-code { text-align: center; margin: 20px 0; }
-              .qr-code img { width: 150px; height: 150px; }
-              .info { margin-bottom: 10px; }
-              .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
-            </style>
-          </head>
-          <body>
-            <div class="pass">
-              <h2 style="text-align: center;">VISITOR PASS</h2>
-              <div class="qr-code">
-                <img src="${pass.qr_code}" alt="QR Code" />
-              </div>
-              <div class="info"><strong>Pass #:</strong> ${pass.pass_number}</div>
-              <div class="info"><strong>Visitor:</strong> ${pass.visitor_name}</div>
-              ${pass.visitor_company ? `<div class="info"><strong>Company:</strong> ${pass.visitor_company}</div>` : ''}
-              <div class="info"><strong>Host:</strong> ${pass.host_name}</div>
-              <div class="info"><strong>Date:</strong> ${new Date(pass.visit_date).toLocaleDateString()}</div>
-              <div class="info"><strong>Time:</strong> ${pass.start_time} - ${pass.end_time}</div>
-              <div class="footer">Please present this pass at reception</div>
+    // Debug logging for print function
+    console.log('Print pass called with:', pass);
+    console.log('QR code data for print:', pass.qr_code ? 'Present' : 'Missing');
+    console.log('QR code starts with data:image?', pass.qr_code?.startsWith('data:image'));
+    
+    // Create a more robust print approach
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Visitor Pass - ${pass.pass_number}</title>
+          <meta charset="UTF-8">
+          <style>
+            * { box-sizing: border-box; }
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 0; 
+              padding: 20px;
+              background: white;
+            }
+            .pass { 
+              width: 400px; 
+              padding: 20px; 
+              border: 2px solid #333; 
+              background: white;
+              margin: 0 auto;
+            }
+            .qr-code { 
+              text-align: center; 
+              margin: 20px 0; 
+              background: white;
+            }
+            .qr-code img { 
+              width: 150px !important; 
+              height: 150px !important; 
+              border: 1px solid #ccc;
+              background: white !important;
+              display: block !important;
+              margin: 0 auto !important;
+            }
+            .info { 
+              margin-bottom: 10px; 
+              font-size: 14px;
+            }
+            .footer { 
+              text-align: center; 
+              margin-top: 20px; 
+              font-size: 12px; 
+              color: #666; 
+            }
+            @media print {
+              body { margin: 0; padding: 10px; }
+              .pass { border: 2px solid #000; }
+              .qr-code img { 
+                width: 150px !important; 
+                height: 150px !important;
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="pass">
+            <h2 style="text-align: center; margin-bottom: 20px;">VISITOR PASS</h2>
+            <div class="qr-code">
+              ${pass.qr_code ? 
+                `<img src="${pass.qr_code}" alt="QR Code" style="width: 150px; height: 150px; border: 1px solid #ccc; background: white;" onload="console.log('QR image loaded successfully')" onerror="console.error('QR image failed to load'); this.style.display='none'; this.parentNode.innerHTML += '<div style=\\'width: 150px; height: 150px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; margin: 0 auto; background: #f0f0f0;\\'>QR Code Error</div>';" />` : 
+                '<div style="width: 150px; height: 150px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; margin: 0 auto; background: #f0f0f0;">No QR Code</div>'
+              }
             </div>
-          </body>
-        </html>
-      `);
+            <div class="info"><strong>Pass #:</strong> ${pass.pass_number}</div>
+            <div class="info"><strong>Visitor:</strong> ${pass.visitor_name}</div>
+            ${pass.visitor_company ? `<div class="info"><strong>Company:</strong> ${pass.visitor_company}</div>` : ''}
+            <div class="info"><strong>Host:</strong> ${pass.host_name}</div>
+            <div class="info"><strong>Date:</strong> ${new Date(pass.visit_date).toLocaleDateString()}</div>
+            <div class="info"><strong>Time:</strong> ${pass.start_time} - ${pass.end_time}</div>
+            <div class="footer">Please present this pass at reception</div>
+          </div>
+          <script>
+            console.log('Print window loaded');
+            console.log('QR code data present:', ${pass.qr_code ? 'true' : 'false'});
+            ${pass.qr_code ? `console.log('QR code length:', ${pass.qr_code.length});` : ''}
+            
+            // Auto-print after a short delay to ensure images load
+            setTimeout(() => {
+              console.log('Initiating print...');
+              window.print();
+            }, 1000);
+          </script>
+        </body>
+      </html>
+    `;
+    
+    const printWindow = window.open('', '_blank', 'width=600,height=800');
+    if (printWindow) {
+      printWindow.document.write(printContent);
       printWindow.document.close();
-      printWindow.print();
+    } else {
+      console.error('Failed to open print window');
     }
   };
 
@@ -461,10 +628,16 @@ export default function GeneratePass() {
             Generate and manage digital visitor passes
           </p>
         </div>
-        <Button onClick={fetchVisitRequests}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={fetchVisitRequests}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={handleManualTest} variant="outline">
+            <QrCode className="h-4 w-4 mr-2" />
+            Test QR
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filter */}

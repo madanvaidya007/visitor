@@ -32,6 +32,7 @@ import {
   FileSpreadsheet,
   File
 } from 'lucide-react';
+import '../../styles/progress-bars.css';
 
 interface ReportData {
   totalVisitors: number;
@@ -475,7 +476,7 @@ export default function Reports() {
                 {reportData.hourlyStats.map((hour, index) => (
                   <div key={index} className="text-center">
                     <div 
-                      className="bg-blue-500 rounded-t mb-1"
+                      className="report-bar bg-blue-500 rounded-t mb-1"
                       style={{ height: `${(hour.visitors / 50) * 100}px`, minHeight: '4px' }}
                     />
                     <div className="text-xs text-muted-foreground">

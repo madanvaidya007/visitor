@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useAuth, Profile } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardHeaderProps {
   profile: Profile;
@@ -18,6 +19,7 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ profile }: DashboardHeaderProps) {
   const { signOut } = useAuth();
+  const navigate = useNavigate();
 
   const getRoleColor = (role: string) => {
     switch (role) {
@@ -47,7 +49,7 @@ export function DashboardHeader({ profile }: DashboardHeaderProps) {
             {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
           </Badge>
 
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/notifications')}>
             <Bell className="h-4 w-4" />
             <span className="absolute -top-1 -right-1 h-2 w-2 bg-destructive rounded-full" />
           </Button>
@@ -78,11 +80,11 @@ export function DashboardHeader({ profile }: DashboardHeaderProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>

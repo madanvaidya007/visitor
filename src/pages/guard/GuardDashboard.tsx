@@ -2,21 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { 
   Shield, 
-  QrCode, 
   Users, 
-  MapPin, 
   Clock, 
-  AlertTriangle,
-  CheckCircle,
-  Activity,
+  MapPin, 
+  AlertTriangle, 
+  CheckCircle, 
+  XCircle, 
   Eye,
   UserCheck,
-  TrendingUp
+  Building,
+  Activity,
+  Zap,
+  RefreshCw,
+  Bell,
+  Search,
+  Filter
 } from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { useRealtimeZoneData } from '@/hooks/useRealtimeZoneData';
 import { usePermissions } from '@/hooks/usePermissions.tsx';
@@ -31,6 +40,7 @@ import {
   ZoneSecurityAlert,
   ZoneStatistics 
 } from '@/types/zoneTypes';
+import '../../styles/progress-bars.css';
 
 export default function GuardDashboard() {
   const { profile } = useAuth();
@@ -71,6 +81,19 @@ export default function GuardDashboard() {
     try {
       // Fetch guard's assigned zones
       const fetchedGuardInfo = await zoneSecurityService.getGuardById(profile.id);
+      
+      if (!fetchedGuardInfo) {
+        // No guard record found - show helpful message
+        setGuardInfo(null);
+        setAssignedZones([]);
+        toast({
+          title: 'Guard Record Not Found',
+          description: 'No guard record exists for your account. Please contact your administrator to set up your guard profile.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
       setGuardInfo(fetchedGuardInfo);
       
       if (fetchedGuardInfo?.assignedZones) {
@@ -87,7 +110,7 @@ export default function GuardDashboard() {
       console.error('Error fetching guard assignments:', error);
       toast({
         title: 'Error loading dashboard',
-        description: 'Failed to load guard dashboard data',
+        description: 'Failed to load guard dashboard data. Please try refreshing the page.',
         variant: 'destructive'
       });
     }
@@ -135,13 +158,19 @@ export default function GuardDashboard() {
     );
   }
 
-  if (assignedZones.length === 0) {
+  if (assignedZones.length === 0 && !loading) {
     return (
       <div className="text-center py-12">
-        <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <h2 className="text-xl font-semibold mb-2">No Zones Assigned</h2>
-        <p className="text-muted-foreground">
-          You haven't been assigned to any security zones yet. Contact your administrator.
+        <CustomLogo className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <h2 className="text-xl font-semibold mb-2">No Guard Access</h2>
+        <p className="text-muted-foreground mb-4">
+          {guardInfo === null 
+            ? "No guard record found for your account. You need a guard profile to access this dashboard."
+            : "You haven't been assigned to any security zones yet."
+          }
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Contact your administrator to {guardInfo === null ? "create your guard profile" : "assign you to security zones"}.
         </p>
       </div>
     );
@@ -344,7 +373,7 @@ export default function GuardDashboard() {
                             </div>
                             <div className="w-full bg-muted rounded-full h-2">
                               <div 
-                                className="bg-primary h-2 rounded-full transition-all"
+                                className="zone-occupancy-bar bg-primary h-2 rounded-full transition-all"
                                 style={{ 
                                   width: `${Math.min((occ.current_count / occ.max_capacity) * 100, 100)}%` 
                                 }}

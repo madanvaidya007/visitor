@@ -1,28 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Camera, 
-  ScanLine, 
+  Square, 
+  RotateCcw, 
+  Zap, 
   CheckCircle, 
   XCircle, 
-  AlertTriangle, 
-  User, 
-  Clock, 
-  MapPin,
-  Building,
-  Shield,
-  RefreshCw
+  AlertTriangle,
+  Settings,
+  Scan,
+  Eye,
+  Activity
 } from 'lucide-react';
+import { toast } from 'sonner';
 import jsQR from 'jsqr';
-import { useQRCode } from '@/hooks/useQRCode';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { zoneSecurityService } from '@/services/zoneSecurityService';
+import { QRScanResult } from '@/types/zoneTypes';
+import '../../styles/progress-bars.css';
 
 interface VisitRequest {
   id: string;
@@ -415,7 +415,7 @@ export function EnhancedQRScanner() {
       </div>
 
       {/* Hidden canvas for QR code detection */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <canvas ref={canvasRef} className="hidden-canvas" />
 
       {/* Scan Result Dialog */}
       <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>

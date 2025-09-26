@@ -744,6 +744,17 @@ export type Database = {
         }
         Returns: string
       }
+      reschedule_visit: {
+        Args: {
+          p_visit_request_id: string
+          p_new_visit_date: string
+          p_new_start_time: string
+          p_new_end_time: string
+          p_reason: string
+          p_rescheduled_by: string
+        }
+        Returns: boolean
+      }
       resolve_zone_alert: {
         Args: { p_alert_id: string; p_resolved_by: string }
         Returns: undefined

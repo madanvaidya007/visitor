@@ -1,21 +1,32 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EnhancedQRScanner } from '../security/EnhancedQRScanner';
-import {
-  Users,
-  MapPin,
+import { 
+  Shield, 
+  Users, 
+  AlertTriangle, 
+  Activity, 
+  Eye, 
   Clock,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  Zap,
   Scan,
   Radio,
   UserCheck,
   Building,
-  AlertTriangle,
-  QrCode,
-  Eye
+  QrCode
 } from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
+import { useRealtimeZoneData } from '@/hooks/useRealtimeZoneData';
+import { SecurityZone, ZoneAccessLog, ZoneSecurityAlert } from '@/types/zoneTypes';
+import '../../styles/progress-bars.css';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { QRScannerTab } from '@/components/security/QRScannerTab';
@@ -283,15 +294,15 @@ export function SecurityDashboard() {
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2 mt-2">
                   <div 
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      getZoneStatusColor(zone.current_count, zone.max_capacity) === 'destructive' 
-                        ? 'bg-destructive' 
-                        : getZoneStatusColor(zone.current_count, zone.max_capacity) === 'secondary'
-                        ? 'bg-orange-500'
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${(zone.current_count / zone.max_capacity) * 100}%` }}
-                  />
+                  className={`security-dashboard-bar h-2 rounded-full transition-all duration-300 ${
+                    getZoneStatusColor(zone.current_count, zone.max_capacity) === 'destructive' 
+                      ? 'bg-destructive' 
+                      : getZoneStatusColor(zone.current_count, zone.max_capacity) === 'secondary'
+                      ? 'bg-orange-500'
+                      : 'bg-green-500'
+                  }`}
+                  style={{ width: `${(zone.current_count / zone.max_capacity) * 100}%` }}
+                />
                 </div>
               </div>
             ))}

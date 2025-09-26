@@ -287,12 +287,17 @@ export function PhotoCapture({
 
         // Update face database statistics
         await FaceDatabaseService.createProfile({
-          name: visitorName,
-          email: visitorEmail || '',
-          photoUrl: photoData,
-          faceDescriptor: Array.from(faceData.descriptor),
-          confidence: faceData.confidence,
-          createdAt: new Date().toISOString()
+          person_id: `visitor_${Date.now()}`,
+          person_name: visitorName || 'Unknown Visitor',
+          face_encoding: JSON.stringify(Array.from(faceData.descriptor)),
+          confidence_threshold: faceData.confidence,
+          is_active: true,
+          metadata: {
+            source: 'manual_upload',
+            quality_score: faceData.confidence,
+            image_url: photoData,
+            notes: `Email: ${visitorEmail || 'Not provided'}`
+          }
         });
 
         console.log('✅ Face data processed and stored successfully');
@@ -375,13 +380,17 @@ export function PhotoCapture({
               {faceDetected && faceData && (
                 <div className="absolute inset-0 pointer-events-none">
                   <div
-                    className="absolute border-2 border-green-400 rounded"
+                    className="absolute border-2 border-green-400 rounded face-detection-box"
                     style={{
-                      left: `${(faceData.boundingBox.x / 640) * 100}%`,
-                      top: `${(faceData.boundingBox.y / 480) * 100}%`,
-                      width: `${(faceData.boundingBox.width / 640) * 100}%`,
-                      height: `${(faceData.boundingBox.height / 480) * 100}%`,
-                    }}
+                      '--face-left': `${(faceData.boundingBox.x / 640) * 100}%`,
+                      '--face-top': `${(faceData.boundingBox.y / 480) * 100}%`,
+                      '--face-width': `${(faceData.boundingBox.width / 640) * 100}%`,
+                      '--face-height': `${(faceData.boundingBox.height / 480) * 100}%`,
+                      left: 'var(--face-left)',
+                      top: 'var(--face-top)',
+                      width: 'var(--face-width)',
+                      height: 'var(--face-height)',
+                    } as React.CSSProperties}
                   />
                   <Badge 
                     className="absolute top-2 left-2 bg-green-500"

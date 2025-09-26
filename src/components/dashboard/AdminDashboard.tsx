@@ -24,6 +24,8 @@ import { ZoneManagementTab } from '@/components/admin/ZoneManagementTab';
 import { GuardManagementTab } from '@/components/admin/GuardManagementTab';
 import { ReportsTab } from '@/components/admin/ReportsTab';
 import { SystemSettingsTab } from '@/components/admin/SystemSettingsTab';
+import { CreateTestGuard } from '@/components/admin/CreateTestGuard';
+import { CustomLogo } from '@/components/ui/CustomLogo';
 
 interface SystemStats {
   total_users: number;
@@ -246,7 +248,7 @@ export function AdminDashboard() {
             Zones
           </TabsTrigger>
           <TabsTrigger value="guards">
-            <Shield className="mr-2 h-4 w-4" />
+            <CustomLogo className="mr-2 h-4 w-4" />
             Guards
           </TabsTrigger>
           <TabsTrigger value="reports">

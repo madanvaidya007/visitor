@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { HostBusyStatusToggle } from '@/components/host/HostBusyStatusToggle';
+import { VisitRescheduleDialog } from '@/components/visit/VisitRescheduleDialog';
 import { 
   Users, 
   Clock, 
@@ -14,7 +16,8 @@ import {
   Calendar,
   MapPin,
   UserCheck,
-  Bell
+  Bell,
+  CalendarClock
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -27,6 +30,7 @@ interface VisitRequest {
   status: string;
   visitor_id: string;
   created_at: string;
+  notes?: string;
   visitor: {
     full_name: string;
     company?: string;
@@ -39,12 +43,33 @@ export function HostDashboard() {
   const { generateQRCode } = useQRCode();
   const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hostProfile, setHostProfile] = useState<any>(null);
+  const [rescheduleDialog, setRescheduleDialog] = useState<{
+    open: boolean;
+    visitRequest: VisitRequest | null;
+  }>({ open: false, visitRequest: null });
 
   useEffect(() => {
     if (profile) {
       fetchVisitRequests();
+      fetchHostProfile();
     }
   }, [profile]);
+
+  const fetchHostProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, is_busy, busy_message, busy_until')
+        .eq('id', profile?.id)
+        .single();
+
+      if (error) throw error;
+      setHostProfile(data);
+    } catch (error) {
+      console.error('Error fetching host profile:', error);
+    }
+  };
 
   const fetchVisitRequests = async () => {
     try {
@@ -91,6 +116,15 @@ export function HostDashboard() {
     } catch (error) {
       console.error('Error updating visit request:', error);
     }
+  };
+
+  const handleReschedule = (request: VisitRequest) => {
+    setRescheduleDialog({ open: true, visitRequest: request });
+  };
+
+  const handleRescheduleSuccess = () => {
+    setRescheduleDialog({ open: false, visitRequest: null });
+    fetchVisitRequests(); // Refresh the list
   };
 
   const getStatusIcon = (status: string) => {
@@ -140,6 +174,14 @@ export function HostDashboard() {
         <h1 className="text-2xl font-bold mb-2">Welcome, {profile?.full_name}</h1>
         <p className="text-white/90">Manage your visitor requests and meetings</p>
       </div>
+
+      {/* Busy Status Toggle */}
+      <HostBusyStatusToggle
+        isBusy={hostProfile?.is_busy}
+        busyMessage={hostProfile?.busy_message}
+        busyUntil={hostProfile?.busy_until}
+        onStatusChange={fetchHostProfile}
+      />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -237,6 +279,9 @@ export function HostDashboard() {
                           {request.start_time} - {request.end_time}
                         </div>
                       </div>
+                      {request.notes && (
+                        <p className="text-sm text-muted-foreground mt-2">{request.notes}</p>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button 
@@ -246,6 +291,14 @@ export function HostDashboard() {
                       >
                         <XCircle className="h-4 w-4 mr-2" />
                         Reject
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleReschedule(request)}
+                      >
+                        <CalendarClock className="h-4 w-4 mr-2" />
+                        Reschedule
                       </Button>
                       <Button 
                         size="sm"
@@ -309,6 +362,30 @@ export function HostDashboard() {
                           {request.start_time} - {request.end_time}
                         </div>
                       </div>
+                      {request.notes && (
+                        <p className="text-sm text-muted-foreground mt-2">{request.notes}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {(request.status === 'pending' || request.status === 'approved') && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleReschedule(request)}
+                        >
+                          <CalendarClock className="h-4 w-4 mr-2" />
+                          Reschedule
+                        </Button>
+                      )}
+                      {request.status === 'approved' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => generateQRCode(request.id)}
+                        >
+                          Generate QR
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -317,6 +394,14 @@ export function HostDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reschedule Dialog */}
+      <VisitRescheduleDialog
+        isOpen={rescheduleDialog.open}
+        onClose={() => setRescheduleDialog({ open: false, visitRequest: null })}
+        visitRequest={rescheduleDialog.visitRequest}
+        onRescheduleSuccess={handleRescheduleSuccess}
+      />
     </div>
   );
 }

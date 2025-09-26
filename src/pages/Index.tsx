@@ -5,7 +5,7 @@ import { ReceptionDashboard } from '@/components/dashboard/ReceptionDashboard';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { SecurityDashboard } from '@/components/dashboard/SecurityDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Users, Building, Key, Eye } from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
 
 const Index = () => {
   const { profile, loading } = useAuth();
@@ -24,20 +24,18 @@ const Index = () => {
   if (!profile) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <Card className="max-w-md mx-auto">
-          <CardHeader className="text-center">
-            <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-            <CardTitle>Access Manager</CardTitle>
-            <CardDescription>
+        <div className="text-center space-y-4">
+          <CustomLogo className="h-16 w-16 mx-auto" alt="Access Manager Logo" />
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Access Manager</h1>
+            <p className="text-muted-foreground mb-4">
               Professional visitor management system
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </p>
             <p className="text-center text-muted-foreground">
               Setting up your profile...
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }

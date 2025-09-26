@@ -43,6 +43,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { FaceDatabaseService, FaceRecognitionLog } from '@/services/faceDatabase';
+import '../../styles/progress-bars.css';
 
 interface LogFilters {
   cameraId?: string;
@@ -399,13 +400,13 @@ export const FaceRecognitionLogs: React.FC = () => {
             
             <Select
               value={filters.cameraId || ''}
-              onValueChange={(value) => setFilters(prev => ({ ...prev, cameraId: value || undefined }))}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, cameraId: value === 'all-cameras' ? undefined : value || undefined }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="All Cameras" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Cameras</SelectItem>
+                <SelectItem value="all-cameras">All Cameras</SelectItem>
                 {cameras.map(camera => (
                   <SelectItem key={camera} value={camera}>{camera}</SelectItem>
                 ))}
@@ -414,13 +415,13 @@ export const FaceRecognitionLogs: React.FC = () => {
             
             <Select
               value={filters.personId || ''}
-              onValueChange={(value) => setFilters(prev => ({ ...prev, personId: value || undefined }))}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, personId: value === 'all-persons' ? undefined : value || undefined }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="All Persons" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Persons</SelectItem>
+                <SelectItem value="all-persons">All Persons</SelectItem>
                 {persons.map(person => (
                   <SelectItem key={person} value={person}>{person}</SelectItem>
                 ))}
@@ -429,13 +430,13 @@ export const FaceRecognitionLogs: React.FC = () => {
             
             <Select
               value={filters.eventType || ''}
-              onValueChange={(value) => setFilters(prev => ({ ...prev, eventType: value || undefined }))}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, eventType: value === 'all-events' ? undefined : value || undefined }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="All Events" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Events</SelectItem>
+                <SelectItem value="all-events">All Events</SelectItem>
                 {eventTypes.map(type => (
                   <SelectItem key={type} value={type}>{formatEventType(type)}</SelectItem>
                 ))}
@@ -535,7 +536,7 @@ export const FaceRecognitionLogs: React.FC = () => {
                       <div className="flex items-center space-x-2">
                         <div className="w-16 bg-gray-200 rounded-full h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full"
+                            className="confidence-bar bg-blue-600 h-2 rounded-full"
                             style={{ width: `${log.confidence * 100}%` }}
                           />
                         </div>

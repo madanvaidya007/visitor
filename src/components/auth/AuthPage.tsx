@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth, UserRole } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Building, Users, Eye, Key } from 'lucide-react';
+import { CustomLogo } from '@/components/ui/CustomLogo';
+import { Users, Building, Key, Eye } from 'lucide-react';
 
 export default function AuthPage() {
   const { signIn, signUp, isAuthenticated, loading } = useAuth();
@@ -103,7 +104,7 @@ export default function AuthPage() {
     visitor: <Users className="h-4 w-4" />,
     host: <Building className="h-4 w-4" />,
     reception: <Key className="h-4 w-4" />,
-    admin: <Shield className="h-4 w-4" />,
+    admin: <CustomLogo className="h-4 w-4" />,
     security: <Eye className="h-4 w-4" />
   };
 
@@ -111,12 +112,12 @@ export default function AuthPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="mx-auto h-12 w-12 rounded-lg bg-primary flex items-center justify-center mb-4">
-            <Shield className="h-6 w-6 text-primary-foreground" />
+        <div className="text-center space-y-4">
+          <CustomLogo className="h-16 w-16 mx-auto" alt="Sangli Police Logo" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Sangli Police</h1>
+            <p className="text-muted-foreground">visitor management system</p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Access Manager</h1>
-          <p className="text-muted-foreground">Secure visitor management system</p>
         </div>
 
         <Card className="shadow-card">

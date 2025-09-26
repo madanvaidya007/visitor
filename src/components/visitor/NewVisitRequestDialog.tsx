@@ -22,15 +22,20 @@ import {
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Clock, MapPin, Users, AlertCircle, Loader2 } from 'lucide-react';
-import { format, addDays, isBefore, isAfter } from 'date-fns';
+import { CalendarIcon, Clock, MapPin, Users, AlertCircle, Loader2, AlertTriangle, Upload } from 'lucide-react';
+import { format, addDays, isBefore, isAfter, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { FileUpload, UploadedFile } from '@/components/ui/FileUpload';
 
 interface Host {
   id: string;
   full_name: string;
   company?: string;
+  is_busy?: boolean;
+  busy_message?: string;
+  busy_until?: string;
 }
 
 interface NewVisitRequestDialogProps {
@@ -53,7 +58,8 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
     purpose: '',
     start_time: '',
     end_time: '',
-    notes: ''
+    notes: '',
+    uploaded_files: [] as UploadedFile[]
   });
 
   useEffect(() => {
@@ -65,7 +71,8 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
         purpose: '',
         start_time: '',
         end_time: '',
-        notes: ''
+        notes: '',
+        uploaded_files: []
       });
       setSelectedDate(undefined);
       setErrors({});
@@ -77,7 +84,7 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, company')
+        .select('id, full_name, company, is_busy, busy_message, busy_until')
         .eq('role', 'host')
         .eq('is_active', true)
         .order('full_name');
@@ -93,6 +100,25 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
       });
     }
   };
+
+  const getHostBusyStatus = (host: Host) => {
+    if (!host.is_busy) return null;
+    
+    const now = new Date();
+    const busyUntil = host.busy_until ? parseISO(host.busy_until) : null;
+    const isExpired = busyUntil && busyUntil < now;
+    
+    if (isExpired) return null;
+    
+    return {
+      isBusy: true,
+      message: host.busy_message || 'Currently unavailable',
+      until: busyUntil
+    };
+  };
+
+  const selectedHost = hosts.find(h => h.id === formData.host_id);
+  const selectedHostBusyStatus = selectedHost ? getHostBusyStatus(selectedHost) : null;
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -198,7 +224,7 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Visit Request</DialogTitle>
           <DialogDescription>
@@ -233,33 +259,57 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
                   setErrors(prev => ({ ...prev, host_id: '' }));
                 }
               }}
-              required
             >
               <SelectTrigger className={errors.host_id ? 'border-red-500' : ''}>
-                <Users className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Choose a host to visit" />
+                <SelectValue placeholder="Choose a host" />
               </SelectTrigger>
               <SelectContent>
-                {loading ? (
-                  <SelectItem value="loading" disabled>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Loading hosts...
-                  </SelectItem>
-                ) : hosts.length === 0 ? (
+                {hosts.length === 0 ? (
                   <SelectItem value="no-hosts" disabled>
                     No hosts available
                   </SelectItem>
                 ) : (
-                  hosts.map((host) => (
-                    <SelectItem key={host.id} value={host.id}>
-                      {host.full_name}
-                      {host.company && <span className="text-muted-foreground ml-2">({host.company})</span>}
-                    </SelectItem>
-                  ))
+                  hosts.map((host) => {
+                    const busyStatus = getHostBusyStatus(host);
+                    return (
+                      <SelectItem key={host.id} value={host.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <span>{host.full_name}</span>
+                            {host.company && <span className="text-muted-foreground">({host.company})</span>}
+                          </div>
+                          {busyStatus && (
+                            <Badge variant="secondary" className="bg-red-100 text-red-800 text-xs ml-2">
+                              Busy
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })
                 )}
               </SelectContent>
             </Select>
             {errors.host_id && <p className="text-sm text-red-500">{errors.host_id}</p>}
+            
+            {/* Busy Host Warning */}
+            {selectedHostBusyStatus && (
+              <Alert className="border-yellow-200 bg-yellow-50">
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-yellow-800">
+                  <div className="space-y-1">
+                    <p className="font-medium">Host is currently busy</p>
+                    <p className="text-sm">{selectedHostBusyStatus.message}</p>
+                    {selectedHostBusyStatus.until && (
+                      <p className="text-sm">
+                        Until: {format(selectedHostBusyStatus.until, 'MMM dd, yyyy HH:mm')}
+                      </p>
+                    )}
+                    <p className="text-sm">Your request can still be submitted, but the host may need to reschedule.</p>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
           {/* Purpose */}
@@ -373,6 +423,28 @@ export function NewVisitRequestDialog({ open, onOpenChange, onSuccess }: NewVisi
               </Select>
               {errors.end_time && <p className="text-sm text-red-500">{errors.end_time}</p>}
             </div>
+          </div>
+
+          {/* Photo and Document Upload */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Photos & Documents
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Upload your photo and any required documents (ID, insurance, etc.)
+            </p>
+            <FileUpload
+              accept="image/*,.pdf,.doc,.docx"
+              maxSize={10}
+              maxFiles={5}
+              allowedTypes={['image', 'document', 'pdf']}
+              onFilesChange={(files) => {
+                setFormData(prev => ({ ...prev, uploaded_files: files }));
+              }}
+              showPreview={true}
+              className="border-dashed border-2 border-gray-300 rounded-lg p-4"
+            />
           </div>
 
           {/* Additional Notes */}

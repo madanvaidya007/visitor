@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Dialog Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dialog Debug Test</h1>
+        <p>This page will help debug the NewVisitRequestDialog issue.</p>
+        
+        <button class="button" onclick="testDialog()">Test Dialog Opening</button>
+        <button class="button" onclick="checkConsole()">Check Console Errors</button>
+        <button class="button" onclick="clearLog()">Clear Log</button>
+        
+        <div id="log" class="log">Console output will appear here...</div>
+        
+        <h2>Instructions:</h2>
+        <ol>
+            <li>Open the main application at <a href="http://localhost:5173/" target="_blank" rel="noopener">http://localhost:5173/</a></li>
+            <li>Open browser developer tools (F12)</li>
+            <li>Go to the Console tab</li>
+            <li>Click "New Visit Request" button</li>
+            <li>Check for any error messages in the console</li>
+            <li>Report back any errors you see</li>
+        </ol>
+        
+        <h2>Common Issues to Check:</h2>
+        <ul>
+            <li>Supabase connection errors</li>
+            <li>Missing environment variables</li>
+            <li>Component rendering errors</li>
+            <li>Network request failures</li>
+        </ul>
+    </div>
+
+    <script>
+        const logElement = document.getElementById('log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function testDialog() {
+            log('Testing dialog functionality...');
+            log('Please check the main application and browser console for errors.');
+        }
+        
+        function checkConsole() {
+            log('Console check initiated. Please check browser developer tools.');
+        }
+        
+        function clearLog() {
+            logElement.textContent = 'Console output will appear here...\n';
+        }
+        
+        // Capture console errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            log('ERROR: ' + args.join(' '));
+            originalError.apply(console, args);
+        };
+        
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            log('WARN: ' + args.join(' '));
+            originalWarn.apply(console, args);
+        };
+        
+        log('Debug page loaded. Ready for testing.');
+    </script>
+</body>
+</html>

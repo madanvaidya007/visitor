@@ -10,6 +10,8 @@ import { Settings, Save, Upload, Shield, Mail, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEmailService } from '@/hooks/useEmailService';
 import { EmailTestPanel } from './EmailTestPanel';
+import { CreateTestGuard } from './CreateTestGuard';
+import { CustomLogo } from '@/components/ui/CustomLogo';
 
 export function SystemSettingsTab() {
   const [settings, setSettings] = useState({
@@ -390,6 +392,20 @@ export function SystemSettingsTab() {
 
       {/* Email Testing Panel */}
       <EmailTestPanel />
+
+      {/* Guard Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CustomLogo className="h-5 w-5" />
+            Guard Management
+          </CardTitle>
+          <CardDescription>Create test guard records for development and testing</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CreateTestGuard />
+        </CardContent>
+      </Card>
 
       {/* Save Button */}
       <div className="flex justify-end">
