@@ -28,17 +28,17 @@ export interface FaceRecognitionLog {
 
 export interface FaceRecognitionSettings {
   id: string;
-  detection_threshold: number;
-  recognition_threshold: number;
-  tracking_max_distance: number;
-  tracking_max_age: number;
-  min_detections_for_track: number;
-  enable_logging: boolean;
-  log_retention_days: number;
-  enable_frame_capture: boolean;
-  encryption_key_id?: string;
-  created_at: string;
-  updated_at: string;
+  detectionThreshold: number;
+  recognitionThreshold: number;
+  trackingMaxDistance: number;
+  trackingMaxAge: number;
+  minDetectionsForTrack: number;
+  enableLogging: boolean;
+  logRetentionDays: number;
+  enableFrameCapture: boolean;
+  encryptionKeyId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CameraFeed {
@@ -56,7 +56,7 @@ export interface SecurityZone {
   id: string;
   name: string;
   description?: string;
-  location: string;
+  location?: string;
   zone_type: 'public' | 'restricted' | 'confidential' | 'top_secret';
   access_level: 'public' | 'restricted' | 'confidential' | 'top_secret';
   max_capacity?: number;
@@ -87,6 +87,7 @@ export interface ZoneVisitor {
   start_time: string;
   end_time: string;
   status: string;
+  destination_zone?: string;
 }
 
 export interface FaceMatch {

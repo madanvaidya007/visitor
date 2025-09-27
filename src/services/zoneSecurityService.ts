@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { QRScanResult, ZoneVisitor, SecurityZone } from '@/types/faceRecognitionTypes';
 import { 
-  SecurityZone, 
   ZoneEntryPoint, 
   ZoneGuard, 
   ZoneAccessLog, 
@@ -8,7 +8,6 @@ import {
   ZoneOccupancy, 
   ZoneSecurityAlert, 
   ZoneStatistics, 
-  QRScanResult,
   RealtimeZoneUpdate
 } from '@/types/zoneTypes';
 
@@ -23,8 +22,111 @@ export class ZoneSecurityService {
     return ZoneSecurityService.instance;
   }
 
+  static async getAuthorizedZones(guardId: string) {
+    // Mock implementation - replace with actual database query
+    const { data, error } = await supabase
+      .from('guard_zone_assignments')
+      .select(`
+        zone_id,
+        zones (
+          id,
+          name,
+          zone_type,
+          is_active
+        )
+      `)
+      .eq('guard_id', guardId)
+      .eq('is_active', true);
+
+    if (error) throw error;
+    return data?.map(assignment => assignment.zones) || [];
+  }
+
+  static async validateZoneAccess(guardId: string, zoneId: string) {
+    const authorizedZones = await this.getAuthorizedZones(guardId);
+    return authorizedZones.some(zone => zone.id === zoneId);
+  }
+
+  static async processQRScan(qrData: string, guardId: string): Promise<QRScanResult> {
+    try {
+      // Extract visit request ID from QR code
+      const parts = qrData.split('-');
+      if (parts.length < 3 || parts[0] !== 'VIS') {
+        return {
+          success: false,
+          error: 'Invalid QR code format'
+        };
+      }
+
+      const visitRequestId = parts[2];
+
+      // Get visit request details
+      const { data: visitRequest, error } = await supabase
+        .from('visit_requests')
+        .select(`
+          *,
+          profiles!visitor_id (*)
+        `)
+        .eq('id', visitRequestId)
+        .eq('status', 'approved')
+        .single();
+
+      if (error || !visitRequest) {
+        return {
+          success: false,
+          error: 'Visit request not found or not approved'
+        };
+      }
+
+      // Check if guard is authorized for the requested zones
+      const authorizedZones = await this.getAuthorizedZones(guardId);
+      const requestedZones = visitRequest.authorized_zones || [];
+      
+      const hasAccess = requestedZones.every((zoneId: string) =>
+        authorizedZones.some(zone => zone.id === zoneId)
+      );
+
+      if (!hasAccess) {
+        return {
+          success: false,
+          error: 'Guard not authorized for requested zones'
+        };
+      }
+
+      // Transform data to match expected interface
+      const visitor: ZoneVisitor = {
+        id: visitRequest.id,
+        full_name: visitRequest.profiles?.full_name || '',
+        email: visitRequest.profiles?.email || '',
+        phone: visitRequest.profiles?.phone,
+        company: visitRequest.profiles?.company,
+        photo_url: visitRequest.profiles?.photo_url,
+        purpose: visitRequest.purpose,
+        visit_date: visitRequest.visit_date,
+        start_time: visitRequest.start_time,
+        end_time: visitRequest.end_time,
+        status: visitRequest.status,
+        destination_zone: requestedZones[0] // First zone as default
+      };
+
+      return {
+        success: true,
+        visitor,
+        zones: authorizedZones,
+        message: 'QR scan successful'
+      };
+
+    } catch (error) {
+      console.error('QR scan processing error:', error);
+      return {
+        success: false,
+        error: 'Failed to process QR scan'
+      };
+    }
+  }
+
   // Zone Management
-  async createZone(zoneData: Omit<SecurityZone, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityZone> {
+  async createZone(zoneData: Omit<SecurityZone, 'id' | 'created_at' | 'updated_at'>): Promise<SecurityZone> {
     const { data, error } = await supabase
       .from('zones')
       .insert([{
