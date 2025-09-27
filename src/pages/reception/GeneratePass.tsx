@@ -186,13 +186,22 @@ export default function GeneratePass() {
       img.style.zIndex = '9999';
       img.style.border = '2px solid red';
       img.style.background = 'white';
+      img.style.width = '200px';
+      img.style.height = '200px';
+      img.onload = () => {
+        console.log('Test QR image loaded successfully');
+        console.log('Image dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+      };
+      img.onerror = () => console.error('Test QR image failed to load');
       document.body.appendChild(img);
       
       setTimeout(() => {
-        document.body.removeChild(img);
-      }, 5000);
+        if (document.body.contains(img)) {
+          document.body.removeChild(img);
+        }
+      }, 10000);
       
-      console.log('Test QR code displayed for 5 seconds');
+      console.log('Test QR code displayed for 10 seconds');
     }
     
     return qrResult;
@@ -215,11 +224,31 @@ export default function GeneratePass() {
     }
   };
 
-  const generateQRCode = (data: string): string => {
+  const generateQRCode = (data: any): string => {
     try {
+      console.log('Generating QR code with data:', data);
+      
+      // Convert data to string if it's an object
+      let qrString = '';
+      if (typeof data === 'string') {
+        qrString = data;
+      } else if (typeof data === 'object') {
+        qrString = JSON.stringify(data);
+      } else {
+        qrString = String(data);
+      }
+      
+      console.log('QR string to encode:', qrString);
+      
+      // Validate that we have data to encode
+      if (!qrString || qrString.trim() === '') {
+        console.error('No data provided for QR code generation');
+        return '';
+      }
+      
       // Create QR code with proper settings
       const qr = qrcode(0, 'M'); // Let library choose optimal type
-      qr.addData(data);
+      qr.addData(qrString);
       qr.make();
       
       // Create canvas with proper dimensions
@@ -232,8 +261,8 @@ export default function GeneratePass() {
       }
       
       const moduleCount = qr.getModuleCount();
-      const cellSize = 8; // Standard cell size
-      const margin = 16; // Standard margin
+      const cellSize = 10; // Increased cell size for better visibility
+      const margin = 20; // Increased margin
       
       // Set canvas size
       const canvasSize = moduleCount * cellSize + margin * 2;
@@ -262,6 +291,7 @@ export default function GeneratePass() {
       // Return high-quality PNG data URL
       const dataURL = canvas.toDataURL('image/png', 1.0);
       console.log('QR code generated successfully, length:', dataURL.length);
+      console.log('QR code data URL preview:', dataURL.substring(0, 100) + '...');
       return dataURL;
     } catch (error) {
       console.error('Error generating QR code:', error);
@@ -284,7 +314,7 @@ export default function GeneratePass() {
         generated_at: new Date().toISOString()
       };
 
-      const qrCodeData = generateQRCode(JSON.stringify(passData));
+      const qrCodeData = generateQRCode(passData);
       
       // Debug logging
       console.log('Pass data for QR:', passData);
@@ -421,10 +451,10 @@ export default function GeneratePass() {
             <h2 style="text-align: center; margin-bottom: 20px;">VISITOR PASS</h2>
             <div class="qr-code">
               ${pass.qr_code ? 
-                `<img src="${pass.qr_code}" alt="QR Code" style="width: 150px; height: 150px; border: 1px solid #ccc; background: white;" onload="console.log('QR image loaded successfully')" onerror="console.error('QR image failed to load'); this.style.display='none'; this.parentNode.innerHTML += '<div style=\\'width: 150px; height: 150px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; margin: 0 auto; background: #f0f0f0;\\'>QR Code Error</div>';" />` : 
+                `<img src="${pass.qr_code}" alt="QR Code" style="width: 150px; height: 150px; border: 1px solid #ccc; background: white;" onload="console.log('QR image loaded successfully')" onerror="console.error('QR image failed to load'); this.style.display='none';" />
+                <div id="qr-fallback" style="width: 150px; height: 150px; border: 1px solid #ccc; display: none; align-items: center; justify-content: center; margin: 0 auto; background: #f0f0f0;">QR Code Error</div>` : 
                 '<div style="width: 150px; height: 150px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; margin: 0 auto; background: #f0f0f0;">No QR Code</div>'
-              }
-            </div>
+              }</div>
             <div class="info"><strong>Pass #:</strong> ${pass.pass_number}</div>
             <div class="info"><strong>Visitor:</strong> ${pass.visitor_name}</div>
             ${pass.visitor_company ? `<div class="info"><strong>Company:</strong> ${pass.visitor_company}</div>` : ''}
@@ -437,6 +467,18 @@ export default function GeneratePass() {
             console.log('Print window loaded');
             console.log('QR code data present:', ${pass.qr_code ? 'true' : 'false'});
             ${pass.qr_code ? `console.log('QR code length:', ${pass.qr_code.length});` : ''}
+            
+            // Show fallback if QR image fails to load
+            const qrImg = document.querySelector('img[alt="QR Code"]');
+            const qrFallback = document.getElementById('qr-fallback');
+            
+            if (qrImg && qrFallback) {
+              qrImg.onerror = function() {
+                console.error('QR image failed to load, showing fallback');
+                this.style.display = 'none';
+                qrFallback.style.display = 'flex';
+              };
+            }
             
             // Auto-print after a short delay to ensure images load
             setTimeout(() => {
