@@ -24,6 +24,12 @@ interface VisitorRegistration {
   created_at: string;
 }
 
+interface Host {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
 export default function QuickRegistration() {
   const [formData, setFormData] = useState({
     full_name: '',
@@ -32,16 +38,44 @@ export default function QuickRegistration() {
     email: '',
     purpose: '',
     visiting_person: '',
+    host_id: '',
     id_type: '',
     id_number: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [hosts, setHosts] = useState<Host[]>([]);
+  const [hostsLoading, setHostsLoading] = useState(false);
   const [recentRegistrations, setRecentRegistrations] = useState<VisitorRegistration[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchRecentRegistrations();
+    fetchHosts();
   }, []);
+
+  const fetchHosts = async () => {
+    setHostsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('role', 'host')
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (error) throw error;
+      setHosts(data || []);
+    } catch (error: any) {
+      console.error('Error fetching hosts:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load hosts. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setHostsLoading(false);
+    }
+  };
 
   const fetchRecentRegistrations = async () => {
     try {
@@ -70,6 +104,7 @@ export default function QuickRegistration() {
       email: '',
       purpose: '',
       visiting_person: '',
+      host_id: '',
       id_type: '',
       id_number: ''
     });
@@ -80,23 +115,32 @@ export default function QuickRegistration() {
     setIsLoading(true);
 
     try {
+      // Use the selected host_id directly from the dropdown
+      const hostId = formData.host_id;
+
       // Create visitor registration
+      const visitData: any = {
+        visitor_name: formData.full_name,
+        visitor_email: formData.email,
+        visitor_phone: formData.phone,
+        visitor_company: formData.company,
+        purpose: formData.purpose,
+        id_type: formData.id_type,
+        id_number: formData.id_number,
+        status: 'approved', // Quick registration auto-approves
+        visit_date: new Date().toISOString().split('T')[0],
+        start_time: new Date().toTimeString().split(' ')[0].slice(0, 5),
+        end_time: '18:00' // Default end time
+      };
+
+      // Add host_id if selected
+      if (hostId) {
+        visitData.host_id = hostId;
+      }
+
       const { data, error } = await supabase
         .from('visit_requests')
-        .insert([{
-          visitor_name: formData.full_name,
-          visitor_email: formData.email,
-          visitor_phone: formData.phone,
-          visitor_company: formData.company,
-          purpose: formData.purpose,
-          host_name: formData.visiting_person,
-          id_type: formData.id_type,
-          id_number: formData.id_number,
-          status: 'approved', // Quick registration auto-approves
-          visit_date: new Date().toISOString().split('T')[0],
-          start_time: new Date().toTimeString().split(' ')[0].slice(0, 5),
-          end_time: '18:00' // Default end time
-        }])
+        .insert([visitData])
         .select()
         .single();
 
@@ -222,13 +266,29 @@ export default function QuickRegistration() {
 
               <div className="space-y-2">
                 <Label htmlFor="visiting_person">Person to Visit *</Label>
-                <Input
-                  id="visiting_person"
-                  value={formData.visiting_person}
-                  onChange={(e) => handleInputChange('visiting_person', e.target.value)}
-                  placeholder="Enter host name"
-                  required
-                />
+                <Select 
+                  value={formData.host_id} 
+                  onValueChange={(value) => {
+                    const selectedHost = hosts.find(host => host.id === value);
+                    handleInputChange('host_id', value);
+                    handleInputChange('visiting_person', selectedHost?.full_name || '');
+                  }}
+                  disabled={hostsLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={hostsLoading ? "Loading hosts..." : "Select a host"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hosts.map((host) => (
+                      <SelectItem key={host.id} value={host.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{host.full_name}</span>
+                          <span className="text-sm text-muted-foreground">{host.email}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

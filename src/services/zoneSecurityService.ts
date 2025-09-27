@@ -12,26 +12,6 @@ import {
 } from '@/types/zoneTypes';
 
 export class ZoneSecurityService {
-  static async processQRScan(qrData: string, zoneId: string) {
-    // Mock implementation
-    return {
-      success: true,
-      visitor: {
-        id: '1',
-        fullName: 'John Doe',
-        email: 'john@example.com',
-        phone: '123-456-7890',
-        company: 'Example Corp',
-        photoUrl: '',
-        purpose: 'Meeting',
-        visitDate: '2025-01-15',
-        startTime: '09:00',
-        endTime: '17:00',
-        status: 'approved',
-        destinationZone: 'Zone A'
-      }
-    };
-  }
   private static instance: ZoneSecurityService;
   private realtimeSubscriptions: Map<string, any> = new Map();
 

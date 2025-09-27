@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useQRCode } from '@/hooks/useQRCode';
 import { useEmailNotifications } from '@/hooks/useEmailService';
 import { generateQRCodeImage, qrCodeToBase64 } from '@/utils/qrCodeUtils';
-import qrcode from 'qrcode-generator';
 
 interface GeneratePassDialogProps {
   open: boolean;
@@ -76,7 +75,12 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
       if (!data.qr_code) {
         await handleGenerateQRCode();
       } else {
-        generateQRCodeImage(data.qr_code);
+        try {
+          const dataUrl = generateQRCodeImage(data.qr_code);
+          setQrCodeDataUrl(dataUrl);
+        } catch (e) {
+          console.error('Failed to render QR code image:', e);
+        }
       }
     } catch (error: any) {
       toast({
@@ -94,7 +98,12 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
     try {
       const qrCode = await generateQRCode(visitRequestId);
       if (qrCode) {
-        generateQRCodeImage(qrCode);
+        try {
+          const dataUrl = generateQRCodeImage(qrCode);
+          setQrCodeDataUrl(dataUrl);
+        } catch (e) {
+          console.error('Failed to render QR code image after generation:', e);
+        }
         // Refresh visit request data
         await fetchVisitRequest();
       }
@@ -106,49 +115,6 @@ export function GeneratePassDialog({ open, onOpenChange, visitRequestId, onSucce
       });
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const generateQRCodeImage = async (qrCodeData: string) => {
-    try {
-      const qr = qrcode(0, 'M');
-      qr.addData(qrCodeData);
-      qr.make();
-      
-      // Create canvas and draw QR code
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const moduleCount = qr.getModuleCount();
-      const cellSize = 8;
-      const margin = 16;
-      
-      canvas.width = canvas.height = moduleCount * cellSize + margin * 2;
-      
-      if (ctx) {
-        // Fill background
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw QR code
-        ctx.fillStyle = '#000000';
-        for (let row = 0; row < moduleCount; row++) {
-          for (let col = 0; col < moduleCount; col++) {
-            if (qr.isDark(row, col)) {
-              ctx.fillRect(
-                col * cellSize + margin,
-                row * cellSize + margin,
-                cellSize,
-                cellSize
-              );
-            }
-          }
-        }
-        
-        const dataUrl = canvas.toDataURL();
-        setQrCodeDataUrl(dataUrl);
-      }
-    } catch (error) {
-      console.error('Error generating QR code image:', error);
     }
   };
 

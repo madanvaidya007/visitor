@@ -57,7 +57,19 @@ export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogP
   }, [selectedVisit]);
 
   const fetchApprovedVisits = async () => {
-    if (!profile) return;
+    console.log('📋 Fetching approved visits for profile:', profile?.id);
+    console.log('🔍 Current user profile details:', {
+      profileId: profile?.id,
+      userId: profile?.user_id,
+      fullName: profile?.full_name,
+      email: profile?.email,
+      role: profile?.role
+    });
+    
+    if (!profile) {
+      console.log('❌ No profile found - user might not be authenticated');
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -72,13 +84,27 @@ export function QRCodeDialog({ open: externalOpen, onOpenChange }: QRCodeDialogP
         .order('visit_date', { ascending: true })
         .order('start_time', { ascending: true });
 
+      console.log('🔍 Database query details:', {
+        table: 'visit_requests',
+        visitorId: profile.id,
+        statusFilter: ['approved', 'checked_in'],
+        dateFilter: new Date().toISOString().split('T')[0],
+        error: error,
+        dataCount: data?.length || 0
+      });
+
       if (error) throw error;
       
+      console.log('✅ Approved visits fetched:', { count: data?.length, visits: data });
       setApprovedVisits(data || []);
       if (data && data.length > 0) {
+        console.log('🎯 Setting first visit as selected:', data[0]);
         setSelectedVisit(data[0]);
+      } else {
+        console.log('❌ No approved visits found');
       }
     } catch (error: any) {
+      console.error('💥 Error fetching approved visits:', error);
       toast({
         title: 'Error loading visits',
         description: error.message,

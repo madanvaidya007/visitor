@@ -78,7 +78,11 @@ export function ReceptionDashboard() {
 
   const fetchVisitorQueue = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
+      const tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+        .toISOString()
+        .split('T')[0];
       
       const { data, error } = await supabase
         .from('visit_requests')
@@ -89,25 +93,25 @@ export function ReceptionDashboard() {
           start_time,
           end_time,
           status,
-          visitor_id,
-          host_id
+          visitor:visitor_id(full_name, company),
+          host:host_id(full_name)
         `)
-        .eq('visit_date', today)
+        .in('visit_date', [today, tomorrowDate])
         .in('status', ['pending', 'approved'])
         .order('start_time', { ascending: true });
 
       if (error) throw error;
 
-      const formattedData = data.map(item => ({
+      const formattedData = data.map((item: any) => ({
         id: item.id,
-        visitor_name: 'Visitor',
-        company: 'Company',
+        visitor_name: item.visitor?.full_name || 'Visitor',
+        company: item.visitor?.company || 'Individual',
         purpose: item.purpose,
         visit_date: item.visit_date,
         start_time: item.start_time,
         end_time: item.end_time,
         status: item.status,
-        host_name: 'Host',
+        host_name: item.host?.full_name || 'Host',
         priority: 'Scheduled' as const
       }));
 
@@ -208,7 +212,16 @@ export function ReceptionDashboard() {
           Quick Registration
         </Button>
         <Button 
-          onClick={() => setShowGeneratePass(true)}
+          onClick={() => {
+            if (!selectedVisitor) {
+              toast({
+                title: 'Select a visitor',
+                description: 'Choose an approved visitor from the queue and click Pass.',
+              });
+              return;
+            }
+            setShowGeneratePass(true);
+          }}
           variant="outline"
           className="h-16 text-base"
         >

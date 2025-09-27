@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generation Test</title>
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+</head>
+<body>
+    <h1>QR Code Generation Test</h1>
+    <div id="qr-container"></div>
+    <div id="logs"></div>
+
+    <script>
+        function log(message) {
+            const logs = document.getElementById('logs');
+            logs.innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        function generateQRCodeImage(qrCodeData, size = 8, margin = 16) {
+            try {
+                log('Generating QR code image: ' + JSON.stringify({ dataLength: qrCodeData.length, size, margin }));
+                
+                const qr = qrcode(0, 'M');
+                qr.addData(qrCodeData);
+                qr.make();
+                
+                // Create canvas and draw QR code
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const moduleCount = qr.getModuleCount();
+                
+                log('QR code module count: ' + moduleCount);
+                
+                canvas.width = canvas.height = moduleCount * size + margin * 2;
+                
+                if (ctx) {
+                    // Fill background
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw QR code
+                    ctx.fillStyle = '#000000';
+                    for (let row = 0; row < moduleCount; row++) {
+                        for (let col = 0; col < moduleCount; col++) {
+                            if (qr.isDark(row, col)) {
+                                ctx.fillRect(
+                                    col * size + margin,
+                                    row * size + margin,
+                                    size,
+                                    size
+                                );
+                            }
+                        }
+                    }
+                    
+                    log('QR code image generated successfully: ' + JSON.stringify({ width: canvas.width, height: canvas.height }));
+                    return canvas.toDataURL();
+                }
+                
+                throw new Error('Failed to get canvas context');
+            } catch (error) {
+                log('QR code generation failed: ' + error.message);
+                throw error;
+            }
+        }
+
+        // Test with sample QR code data from the database
+        const testQRCode = 'VMS-v2.0-3a576cc9-525b-4cfe-8a0f-1872c135a95d-1758';
+        
+        try {
+            const qrDataUrl = generateQRCodeImage(testQRCode);
+            const img = document.createElement('img');
+            img.src = qrDataUrl;
+            img.style.border = '1px solid #ccc';
+            img.style.padding = '10px';
+            document.getElementById('qr-container').appendChild(img);
+            log('QR code displayed successfully');
+        } catch (error) {
+            log('Failed to generate or display QR code: ' + error.message);
+        }
+    </script>
+</body>
+</html>

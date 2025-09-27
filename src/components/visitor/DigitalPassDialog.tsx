@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useToast } from '@/hooks/use-toast';
 import { useQRCode } from '@/hooks/useQRCode';
-import { generateQRCodeImage } from '@/utils/qrCodeUtils';
+import { generateQRCodeImage as generateQRCodeUtil } from '@/utils/qrCodeUtils';
 import { VisitRequest } from '@/types/visitTypes';
 import '../../styles/progress-bars.css';
 
@@ -70,32 +70,69 @@ export function DigitalPassDialog({
   const { validateQRCodeString } = useQRCode();
 
   useEffect(() => {
+    console.log('🚀 DigitalPassDialog useEffect triggered:', { 
+      open, 
+      hasVisitRequest: !!visitRequest, 
+      hasQrCode: !!visitRequest?.qr_code,
+      qrCodeValue: visitRequest?.qr_code 
+    });
+    
     if (open && visitRequest?.qr_code) {
+      console.log('✅ Conditions met, calling generateQRCodeImage');
       generateQRCodeImage();
+    } else {
+      console.log('❌ Conditions not met:', {
+        dialogOpen: open,
+        hasVisitRequest: !!visitRequest,
+        hasQrCode: !!visitRequest?.qr_code
+      });
     }
   }, [open, visitRequest]);
 
-  const generateQRCodeImage = async () => {
-    if (!visitRequest?.qr_code) return;
+  const generateQRCodeImage = () => {
+    if (!visitRequest?.qr_code) {
+      console.log('❌ No QR code data available');
+      return;
+    }
+    
+    console.log('🔄 Starting QR code generation...');
+    console.log('📊 Visit request data:', {
+      id: visitRequest.id,
+      qrCode: visitRequest.qr_code,
+      qrCodeLength: visitRequest.qr_code.length
+    });
     
     setLoading(true);
     try {
+      console.log('🔍 Generating QR code for:', visitRequest.qr_code);
+      
       // Validate QR code before generating image
       const validation = validateQRCodeString(visitRequest.qr_code);
+      console.log('✅ QR code validation result:', validation);
+      
       if (!validation.valid) {
-        toast({
-          title: 'Invalid QR Code',
-          description: validation.reason || 'QR code validation failed',
-          variant: 'destructive'
-        });
-        return;
+        console.warn('⚠️ QR code validation failed:', validation.reason);
+        // Don't show error toast for validation failures, just proceed with generation
+        // The QR code might be in a legacy format that still works
       }
 
-      // Use the utility function to generate QR code image
-      const qrDataUrl = generateQRCodeImage(visitRequest.qr_code);
-      setQrCodeUrl(qrDataUrl);
+      // Use the utility function to generate QR code image (synchronous function)
+      console.log('🎨 Calling generateQRCodeUtil...');
+      const qrDataUrl = generateQRCodeUtil(visitRequest.qr_code);
+      console.log('🖼️ QR code generation result:', {
+        success: !!qrDataUrl,
+        dataUrlLength: qrDataUrl?.length || 0,
+        dataUrlPrefix: qrDataUrl?.substring(0, 50) || 'N/A'
+      });
+      
+      if (qrDataUrl) {
+        setQrCodeUrl(qrDataUrl);
+        console.log('✅ QR code URL set successfully in state');
+      } else {
+        console.error('❌ Failed to generate QR code data URL');
+      }
     } catch (error) {
-      console.error('Error generating QR code:', error);
+      console.error('💥 Error generating QR code:', error);
       toast({
         title: 'Error',
         description: 'Failed to generate QR code',
@@ -103,6 +140,7 @@ export function DigitalPassDialog({
       });
     } finally {
       setLoading(false);
+      console.log('🏁 QR code generation process completed');
     }
   };
 

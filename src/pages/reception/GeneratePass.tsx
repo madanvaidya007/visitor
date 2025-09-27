@@ -480,11 +480,45 @@ export default function GeneratePass() {
               };
             }
             
-            // Auto-print after a short delay to ensure images load
-            setTimeout(() => {
+            // Print only after QR image is loaded, with a safe fallback
+            const safePrint = () => {
               console.log('Initiating print...');
-              window.print();
-            }, 1000);
+              // small delay helps some browsers finalize layout before printing
+              setTimeout(() => window.print(), 50);
+            };
+
+            if (qrImg) {
+              if (qrImg.complete && qrImg.naturalWidth > 0) {
+                console.log('QR image already loaded; printing now.');
+                safePrint();
+              } else {
+                console.log('Waiting for QR image to load before printing...');
+                qrImg.onload = () => {
+                  console.log('QR image loaded; printing now.');
+                  safePrint();
+                };
+                qrImg.onerror = function() {
+                  console.error('QR image failed to load, showing fallback and printing anyway');
+                  this.style.display = 'none';
+                  if (qrFallback) qrFallback.style.display = 'flex';
+                  safePrint();
+                };
+                // Fallback timeout if onload never fires
+                setTimeout(() => {
+                  console.warn('QR load timeout; printing anyway.');
+                  safePrint();
+                }, 2000);
+              }
+            } else {
+              console.warn('No QR image element found; printing anyway.');
+              safePrint();
+            }
+            
+            // Close the window after printing
+            window.addEventListener('afterprint', () => {
+              console.log('Print complete; closing window');
+              window.close();
+            });
           </script>
         </body>
       </html>
