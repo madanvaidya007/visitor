@@ -107,87 +107,13 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
 
   const startCamera = async () => {
     try {
-      // Check HTTPS requirement for mobile devices
-      const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      if (isMobile && !isSecureContext) {
-        console.error('❌ HTTPS required for camera access on mobile devices');
-        setError('Camera access requires HTTPS on mobile devices. Please access this page via HTTPS.');
-        return;
-      }
-
-      // Check if camera is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('❌ Camera API not supported');
-        setError('Camera not supported in this browser.');
-        return;
-      }
-
-      // Mobile-optimized camera constraints with fallbacks
-      const getVideoConstraints = () => {
-        if (isMobile) {
-          return [
-            // Primary: High quality for mobile front camera
-            {
-              facingMode: 'user',
-              width: { ideal: 640, max: 1280 },
-              height: { ideal: 480, max: 720 }
-            },
-            // Fallback 1: Medium quality
-            {
-              facingMode: 'user',
-              width: { ideal: 480, max: 640 },
-              height: { ideal: 360, max: 480 }
-            },
-            // Fallback 2: Basic quality
-            {
-              facingMode: 'user',
-              width: { ideal: 320, max: 480 },
-              height: { ideal: 240, max: 360 }
-            },
-            // Fallback 3: Any available camera
-            {
-              facingMode: { ideal: 'user' }
-            },
-            // Final fallback: Any camera
-            true
-          ];
-        } else {
-          // Desktop constraints
-          return [{ 
-            video: { width: 640, height: 480 } 
-          }];
-        }
-      };
-
-      let stream = null;
-      const constraints = getVideoConstraints();
-      
-      // Try each constraint set until one works
-      for (let i = 0; i < constraints.length; i++) {
-        try {
-          console.log(`📷 Trying camera constraint set ${i + 1}/${constraints.length}...`);
-          
-          const mediaConstraints: MediaStreamConstraints = isMobile 
-            ? { video: constraints[i] } 
-            : (typeof constraints[i] === 'boolean' ? { video: constraints[i] } : constraints[i]);
-          stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
-          
-          console.log(`✅ Camera stream obtained with constraint set ${i + 1}`);
-          break;
-        } catch (constraintError) {
-          console.log(`❌ Constraint set ${i + 1} failed:`, constraintError.message);
-          
-          if (i === constraints.length - 1) {
-            throw constraintError; // Re-throw the last error
-          }
-        }
-      }
-
-      if (!stream) {
-        throw new Error('Failed to obtain camera stream with any constraints');
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 640 }, 
+          height: { ideal: 480 },
+          facingMode: 'user'
+        } 
+      });
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -195,29 +121,7 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
       }
     } catch (err: any) {
       console.error('Failed to start camera:', err);
-      
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
-      
-      let errorMessage = 'Failed to access camera. ';
-      
-      if (err.name === 'NotAllowedError') {
-        errorMessage += isMobile 
-          ? 'On mobile: Tap the camera icon in your browser\'s address bar and select "Allow".' 
-          : 'Please allow camera permissions and try again.';
-      } else if (err.name === 'NotFoundError') {
-        errorMessage += 'No camera found on this device.';
-      } else if (err.name === 'NotSupportedError') {
-        errorMessage += isMobile && !isSecureContext
-          ? 'Camera requires HTTPS on mobile devices.'
-          : 'Camera not supported in this browser.';
-      } else if (err.name === 'NotReadableError') {
-        errorMessage += 'Camera is already in use by another application.';
-      } else {
-        errorMessage += err.message || 'Unknown camera error.';
-      }
-      
-      setError(errorMessage);
+      setError('Failed to access camera. Please check permissions.');
     }
   };
 
@@ -269,8 +173,9 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
           canvas.height = img.height;
           ctx.drawImage(img, 0, 0);
           
-          // Detect faces using canvas element
-          const detections = await FaceRecognitionService.detectFaces(canvas);
+          // Get image data for face detection
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const detections = await FaceRecognitionService.detectFaces(imageData);
           
           if (detections.length === 0) {
             throw new Error('No face detected in the image');
@@ -280,9 +185,9 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
             throw new Error('Multiple faces detected. Please use an image with a single face');
           }
           
-          // Generate face encoding from canvas
-          const encoding = await FaceRecognitionService.generateFaceEncoding(canvas);
-          resolve(encoding);
+          // Generate face encoding from image data
+          const encoding = await FaceRecognitionService.generateFaceEncoding(imageData);
+          resolve(JSON.stringify(encoding));
           
         } catch (error) {
           reject(error);
@@ -334,81 +239,6 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
       setIsProcessing(false);
     }
   };
-
-  const handleEditProfile = async () => {
-    if (!selectedProfile) return;
-
-    try {
-      setIsProcessing(true);
-      setError(null);
-      
-      let updateData: Partial<FaceProfile> = {
-        person_name: newProfile.personName,
-        confidence_threshold: newProfile.confidenceThreshold
-      };
-      
-      // If new image is provided, process it
-      if (newProfile.imageFile) {
-        const faceEncoding = await processFaceImage(newProfile.imageFile);
-        updateData.face_encoding = faceEncoding;
-      }
-      
-      await FaceDatabaseService.updateProfile(selectedProfile.id, updateData);
-      
-      setIsEditDialogOpen(false);
-      setSelectedProfile(null);
-      await loadProfiles();
-      onProfilesChange();
-      
-    } catch (err) {
-      console.error('Failed to update profile:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleDeleteProfile = async (profileId: string) => {
-    if (!confirm('Are you sure you want to delete this profile?')) return;
-
-    try {
-      await FaceDatabaseService.deleteProfile(profileId);
-      await loadProfiles();
-      onProfilesChange();
-    } catch (err) {
-      console.error('Failed to delete profile:', err);
-      setError('Failed to delete profile');
-    }
-  };
-
-  const handleToggleActive = async (profile: FaceProfile) => {
-    try {
-      await FaceDatabaseService.updateProfile(profile.id, {
-        is_active: !profile.is_active
-      });
-      await loadProfiles();
-      onProfilesChange();
-    } catch (err) {
-      console.error('Failed to toggle profile status:', err);
-      setError('Failed to update profile status');
-    }
-  };
-
-  const openEditDialog = (profile: FaceProfile) => {
-    setSelectedProfile(profile);
-    setNewProfile({
-      personId: profile.person_id,
-      personName: profile.person_name,
-      confidenceThreshold: profile.confidence_threshold
-    });
-    setPreviewImage(null);
-    setIsEditDialogOpen(true);
-  };
-
-  const filteredProfiles = profiles.filter(profile =>
-    profile.person_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    profile.person_id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -499,68 +329,77 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
                         aria-label="Upload face photo for profile"
                       />
                       <Button
-                        variant="outline"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center space-x-2"
+                        variant="outline"
+                        className="w-full"
                       >
-                        <Upload className="h-4 w-4" />
-                        <span>Choose Image</span>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Choose Photo
                       </Button>
                     </div>
                   </div>
                 </TabsContent>
                 
                 <TabsContent value="camera" className="space-y-4">
-                  <div className="text-center">
-                    {!isCameraActive ? (
-                      <Button onClick={startCamera} className="flex items-center space-x-2">
-                        <Camera className="h-4 w-4" />
-                        <span>Start Camera</span>
-                      </Button>
-                    ) : (
-                      <div className="space-y-4">
+                  <div>
+                    <Label>Camera Capture</Label>
+                    <div className="mt-2 space-y-4">
+                      <div className="relative">
                         <video
                           ref={videoRef}
+                          className="w-full h-48 bg-gray-100 rounded object-cover"
                           autoPlay
+                          muted
                           playsInline
-                          className="w-full max-w-md mx-auto rounded-lg"
                         />
-                        <div className="flex justify-center space-x-2">
-                          <Button onClick={capturePhoto}>Capture</Button>
-                          <Button variant="outline" onClick={stopCamera}>Cancel</Button>
-                        </div>
+                        <canvas ref={canvasRef} className="hidden" />
                       </div>
-                    )}
+                      <div className="flex space-x-2">
+                        {!isCameraActive ? (
+                          <Button onClick={startCamera} className="flex-1">
+                            <Camera className="h-4 w-4 mr-2" />
+                            Start Camera
+                          </Button>
+                        ) : (
+                          <>
+                            <Button onClick={capturePhoto} className="flex-1">
+                              <Camera className="h-4 w-4 mr-2" />
+                              Capture
+                            </Button>
+                            <Button onClick={stopCamera} variant="outline">
+                              Stop
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
               
               {previewImage && (
-                <div className="text-center">
+                <div>
+                  <Label>Preview</Label>
                   <img
                     src={previewImage}
-                    alt="Preview"
-                    className="max-w-xs mx-auto rounded-lg border"
+                    alt="Face preview"
+                    className="mt-2 w-32 h-32 object-cover rounded border"
                   />
                 </div>
+              )}
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
             </div>
             
             <DialogFooter>
               <Button
-                variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false);
-                  setNewProfile({ personId: '', personName: '', confidenceThreshold: 0.6 });
-                  setPreviewImage(null);
-                  stopCamera();
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
                 onClick={handleAddProfile}
-                disabled={isProcessing}
+                disabled={isProcessing || !newProfile.personId || !newProfile.personName || !newProfile.imageFile}
               >
                 {isProcessing ? 'Processing...' : 'Add Profile'}
               </Button>
@@ -569,178 +408,16 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
         </Dialog>
       </div>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Search */}
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Search profiles..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="text-sm text-gray-600">
-          {filteredProfiles.length} of {profiles.length} profiles
-        </div>
-      </div>
-
-      {/* Profiles Table */}
+      {/* Profiles List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Users className="h-5 w-5" />
-            <span>Face Profiles</span>
-          </CardTitle>
+          <CardTitle>Profiles</CardTitle>
+          <CardDescription>Manage face recognition profiles</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Person ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Threshold</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProfiles.map((profile) => (
-                <TableRow key={profile.id}>
-                  <TableCell className="font-medium">{profile.person_id}</TableCell>
-                  <TableCell>{profile.person_name}</TableCell>
-                  <TableCell>{(profile.confidence_threshold * 100).toFixed(0)}%</TableCell>
-                  <TableCell>
-                    <Badge variant={profile.is_active ? "default" : "secondary"}>
-                      {profile.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(profile.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleActive(profile)}
-                      >
-                        {profile.is_active ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(profile)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteProfile(profile.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <p className="text-gray-500">Face recognition profiles will be displayed here.</p>
         </CardContent>
       </Card>
-
-      {/* Hidden canvas for photo capture */}
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Face Profile</DialogTitle>
-            <DialogDescription>
-              Update profile information
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="editPersonName">Full Name</Label>
-              <Input
-                id="editPersonName"
-                value={newProfile.personName}
-                onChange={(e) => setNewProfile(prev => ({ ...prev, personName: e.target.value }))}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="editThreshold">Recognition Threshold</Label>
-              <Input
-                id="editThreshold"
-                type="number"
-                min="0"
-                max="1"
-                step="0.1"
-                value={newProfile.confidenceThreshold}
-                onChange={(e) => setNewProfile(prev => ({ ...prev, confidenceThreshold: parseFloat(e.target.value) }))}
-              />
-            </div>
-            
-            <div>
-              <Label>Update Photo (Optional)</Label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="mt-2"
-                aria-label="Update face photo for existing profile"
-              />
-            </div>
-            
-            {previewImage && (
-              <div className="text-center">
-                <img
-                  src={previewImage}
-                  alt="Preview"
-                  className="max-w-xs mx-auto rounded-lg border"
-                />
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setSelectedProfile(null);
-                setPreviewImage(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleEditProfile}
-              disabled={isProcessing}
-            >
-              {isProcessing ? 'Processing...' : 'Update Profile'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

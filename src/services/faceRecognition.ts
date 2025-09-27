@@ -9,7 +9,7 @@ export class FaceRecognitionService {
     return [];
   }
 
-  static async generateFaceEncoding(canvas: HTMLCanvasElement) {
+  static async generateFaceEncoding(imageData: ImageData) {
     // Mock implementation for generating face encoding
     return new Array(128).fill(0).map(() => Math.random());
   }

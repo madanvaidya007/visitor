@@ -28,17 +28,17 @@ export interface FaceRecognitionLog {
 
 export interface FaceRecognitionSettings {
   id: string;
-  detectionThreshold: number;
-  recognitionThreshold: number;
-  trackingMaxDistance: number;
-  trackingMaxAge: number;
-  minDetectionsForTrack: number;
-  enableLogging: boolean;
-  logRetentionDays: number;
-  enableFrameCapture: boolean;
-  encryptionKeyId?: string;
-  createdAt: string;
-  updatedAt: string;
+  detection_threshold: number;
+  recognition_threshold: number;
+  tracking_max_distance: number;
+  tracking_max_age: number;
+  min_detections_for_track: number;
+  enable_logging: boolean;
+  log_retention_days: number;
+  enable_frame_capture: boolean;
+  encryption_key_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CameraFeed {
@@ -77,17 +77,17 @@ export interface QRScanResult {
 
 export interface ZoneVisitor {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
   phone?: string;
   company?: string;
-  photo_url?: string;
+  photoUrl?: string;
   purpose: string;
-  visit_date: string;
-  start_time: string;
-  end_time: string;
+  visitDate: string;
+  startTime: string;
+  endTime: string;
   status: string;
-  destination_zone?: string;
+  destinationZone?: string;
 }
 
 export interface FaceMatch {

@@ -29,17 +29,17 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
 }) => {
   const [settings, setSettings] = useState<SettingsType>({
     id: '1',
-    detectionThreshold: 0.5,
-    recognitionThreshold: 0.6,
-    trackingMaxDistance: 100,
-    trackingMaxAge: 3000,
-    minDetectionsForTrack: 3,
-    enableLogging: true,
-    logRetentionDays: 30,
-    enableFrameCapture: false,
-    encryptionKeyId: 'default',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    detection_threshold: 0.5,
+    recognition_threshold: 0.6,
+    tracking_max_distance: 100,
+    tracking_max_age: 3000,
+    min_detections_for_track: 3,
+    enable_logging: true,
+    log_retention_days: 30,
+    enable_frame_capture: false,
+    encryption_key_id: 'default',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   });
   
   const [originalSettings, setOriginalSettings] = useState<SettingsType | null>(null);
@@ -105,17 +105,17 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
   const handleResetToDefaults = () => {
     const defaultSettings: SettingsType = {
       id: '1',
-      detectionThreshold: 0.5,
-      recognitionThreshold: 0.6,
-      trackingMaxDistance: 100,
-      trackingMaxAge: 3000,
-      minDetectionsForTrack: 3,
-      enableLogging: true,
-      logRetentionDays: 30,
-      enableFrameCapture: false,
-      encryptionKeyId: 'default',
-      createdAt: settings.createdAt,
-      updatedAt: new Date().toISOString()
+      detection_threshold: 0.5,
+      recognition_threshold: 0.6,
+      tracking_max_distance: 100,
+      tracking_max_age: 3000,
+      min_detections_for_track: 3,
+      enable_logging: true,
+      log_retention_days: 30,
+      enable_frame_capture: false,
+      encryption_key_id: 'default',
+      created_at: settings.created_at,
+      updated_at: new Date().toISOString()
     };
     setSettings(defaultSettings);
   };
@@ -215,13 +215,13 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                     min={0.1}
                     max={0.9}
                     step={0.05}
-                    value={[settings.detectionThreshold]}
-                    onValueChange={([value]) => updateSetting('detectionThreshold', value)}
+                    value={[settings.detection_threshold]}
+                    onValueChange={([value]) => updateSetting('detection_threshold', value)}
                     className="w-full"
                   />
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Low Sensitivity (0.1)</span>
-                    <span className="font-medium">{(settings.detectionThreshold * 100).toFixed(0)}%</span>
+                    <span className="font-medium">{(settings.detection_threshold * 100).toFixed(0)}%</span>
                     <span>High Sensitivity (0.9)</span>
                   </div>
                 </div>
@@ -255,13 +255,13 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                     min={0.3}
                     max={0.9}
                     step={0.05}
-                    value={[settings.recognitionThreshold]}
-                    onValueChange={([value]) => updateSetting('recognitionThreshold', value)}
+                    value={[settings.recognition_threshold]}
+                    onValueChange={([value]) => updateSetting('recognition_threshold', value)}
                     className="w-full"
                   />
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Permissive (0.3)</span>
-                    <span className="font-medium">{(settings.recognitionThreshold * 100).toFixed(0)}%</span>
+                    <span className="font-medium">{(settings.recognition_threshold * 100).toFixed(0)}%</span>
                     <span>Strict (0.9)</span>
                   </div>
                 </div>
@@ -294,8 +294,8 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                   type="number"
                   min={10}
                   max={500}
-                  value={settings.trackingMaxDistance}
-                  onChange={(e) => updateSetting('trackingMaxDistance', parseInt(e.target.value))}
+                  value={settings.tracking_max_distance}
+                  onChange={(e) => updateSetting('tracking_max_distance', parseInt(e.target.value))}
                   className="mt-2"
                 />
                 <p className="text-sm text-gray-600 mt-2">
@@ -310,8 +310,8 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                   type="number"
                   min={500}
                   max={10000}
-                  value={settings.trackingMaxAge}
-                  onChange={(e) => updateSetting('trackingMaxAge', parseInt(e.target.value))}
+                  value={settings.tracking_max_age}
+                  onChange={(e) => updateSetting('tracking_max_age', parseInt(e.target.value))}
                   className="mt-2"
                 />
                 <p className="text-sm text-gray-600 mt-2">
@@ -326,8 +326,8 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                   type="number"
                   min={1}
                   max={10}
-                  value={settings.minDetectionsForTrack}
-                  onChange={(e) => updateSetting('minDetectionsForTrack', parseInt(e.target.value))}
+                  value={settings.min_detections_for_track}
+                  onChange={(e) => updateSetting('min_detections_for_track', parseInt(e.target.value))}
                   className="mt-2"
                 />
                 <p className="text-sm text-gray-600 mt-2">
@@ -361,8 +361,8 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                   </div>
                   <Switch
                     id="enableLogging"
-                    checked={settings.enableLogging}
-                    onCheckedChange={(checked) => updateSetting('enableLogging', checked)}
+                    checked={settings.enable_logging}
+                    onCheckedChange={(checked) => updateSetting('enable_logging', checked)}
                   />
                 </div>
 
@@ -373,10 +373,10 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                     type="number"
                     min={1}
                     max={365}
-                    value={settings.logRetentionDays}
-                    onChange={(e) => updateSetting('logRetentionDays', parseInt(e.target.value))}
+                    value={settings.log_retention_days}
+                    onChange={(e) => updateSetting('log_retention_days', parseInt(e.target.value))}
                     className="mt-2"
-                    disabled={!settings.enableLogging}
+                    disabled={!settings.enable_logging}
                   />
                   <p className="text-sm text-gray-600 mt-2">
                     How long to keep activity logs before automatic deletion.
@@ -392,9 +392,9 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                   </div>
                   <Switch
                     id="enableFrameCapture"
-                    checked={settings.enableFrameCapture}
-                    onCheckedChange={(checked) => updateSetting('enableFrameCapture', checked)}
-                    disabled={!settings.enableLogging}
+                    checked={settings.enable_frame_capture}
+                    onCheckedChange={(checked) => updateSetting('enable_frame_capture', checked)}
+                    disabled={!settings.enable_logging}
                   />
                 </div>
               </CardContent>
@@ -415,8 +415,8 @@ export const FaceRecognitionSettings: React.FC<FaceRecognitionSettingsProps> = (
                   <Label htmlFor="encryptionKeyId">Encryption Key ID</Label>
                   <Input
                     id="encryptionKeyId"
-                    value={settings.encryptionKeyId}
-                    onChange={(e) => updateSetting('encryptionKeyId', e.target.value)}
+                    value={settings.encryption_key_id}
+                    onChange={(e) => updateSetting('encryption_key_id', e.target.value)}
                     className="mt-2"
                     placeholder="default"
                   />
