@@ -169,9 +169,10 @@ export const FaceProfileManager: React.FC<FaceProfileManagerProps> = ({
         try {
           console.log(`📷 Trying camera constraint set ${i + 1}/${constraints.length}...`);
           
-          stream = await navigator.mediaDevices.getUserMedia(
-            isMobile ? { video: constraints[i] } : constraints[i]
-          );
+          const mediaConstraints: MediaStreamConstraints = isMobile 
+            ? { video: constraints[i] } 
+            : (typeof constraints[i] === 'boolean' ? { video: constraints[i] } : constraints[i]);
+          stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
           
           console.log(`✅ Camera stream obtained with constraint set ${i + 1}`);
           break;

@@ -378,7 +378,7 @@ export const LiveCameraFeed: React.FC<LiveCameraFeedProps> = ({
             size="sm"
             onClick={toggleFullscreen}
           >
-            <Maximize2 className="h-4 w-4" />
+            <Maximize className="h-4 w-4" />
           </Button>
         </div>
       </div>

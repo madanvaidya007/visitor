@@ -27,7 +27,9 @@ import {
 import { CustomLogo } from '@/components/ui/CustomLogo';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { QRCodeSVG } from 'qrcode.react';
+import { useToast } from '@/hooks/use-toast';
+import { useQRCode } from '@/hooks/useQRCode';
+import { generateQRCodeImage } from '@/utils/qrCodeUtils';
 import { VisitRequest } from '@/types/visitTypes';
 import '../../styles/progress-bars.css';
 
@@ -89,42 +91,9 @@ export function DigitalPassDialog({
         return;
       }
 
-      const qr = qrcode(0, 'M');
-      qr.addData(visitRequest.qr_code);
-      qr.make();
-      
-      // Create canvas and draw QR code
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const moduleCount = qr.getModuleCount();
-      const cellSize = 8;
-      const margin = 16;
-      
-      canvas.width = canvas.height = moduleCount * cellSize + margin * 2;
-      
-      if (ctx) {
-        // Fill background
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw QR code
-        ctx.fillStyle = '#000000';
-        for (let row = 0; row < moduleCount; row++) {
-          for (let col = 0; col < moduleCount; col++) {
-            if (qr.isDark(row, col)) {
-              ctx.fillRect(
-                col * cellSize + margin,
-                row * cellSize + margin,
-                cellSize,
-                cellSize
-              );
-            }
-          }
-        }
-        
-        const qrDataUrl = canvas.toDataURL();
-        setQrCodeUrl(qrDataUrl);
-      }
+      // Use the utility function to generate QR code image
+      const qrDataUrl = generateQRCodeImage(visitRequest.qr_code);
+      setQrCodeUrl(qrDataUrl);
     } catch (error) {
       console.error('Error generating QR code:', error);
       toast({

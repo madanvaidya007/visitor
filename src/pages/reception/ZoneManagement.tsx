@@ -399,7 +399,7 @@ export default function ZoneManagement() {
           <Input
             id="name"
             value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             placeholder="Enter zone name"
           />
         </div>
@@ -408,7 +408,7 @@ export default function ZoneManagement() {
           <Input
             id="location"
             value={formData.location}
-            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
             placeholder="Enter location"
           />
         </div>
@@ -419,7 +419,7 @@ export default function ZoneManagement() {
         <Textarea
           id="description"
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
           placeholder="Enter zone description"
           rows={3}
         />
@@ -430,7 +430,7 @@ export default function ZoneManagement() {
           <Label htmlFor="access_level">Access Level</Label>
           <Select 
             value={formData.access_level} 
-            onValueChange={(value: any) => setFormData({ ...formData, access_level: value })}
+            onValueChange={(value: any) => setFormData(prev => ({ ...prev, access_level: value }))}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select access level" />
@@ -449,7 +449,7 @@ export default function ZoneManagement() {
             id="capacity"
             type="number"
             value={formData.capacity}
-            onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
+            onChange={(e) => setFormData(prev => ({ ...prev, capacity: parseInt(e.target.value) || 0 }))}
             placeholder="Enter capacity"
             min="1"
           />
@@ -463,7 +463,7 @@ export default function ZoneManagement() {
             id="start_time"
             type="time"
             value={formData.working_hours_start}
-            onChange={(e) => setFormData({ ...formData, working_hours_start: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, working_hours_start: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
@@ -472,7 +472,7 @@ export default function ZoneManagement() {
             id="end_time"
             type="time"
             value={formData.working_hours_end}
-            onChange={(e) => setFormData({ ...formData, working_hours_end: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, working_hours_end: e.target.value }))}
           />
         </div>
       </div>
@@ -482,7 +482,7 @@ export default function ZoneManagement() {
           <Switch
             id="is_active"
             checked={formData.is_active}
-            onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
           />
           <Label htmlFor="is_active">Zone is active</Label>
         </div>
@@ -490,7 +490,7 @@ export default function ZoneManagement() {
           <Switch
             id="requires_escort"
             checked={formData.requires_escort}
-            onCheckedChange={(checked) => setFormData({ ...formData, requires_escort: checked })}
+            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, requires_escort: checked }))}
           />
           <Label htmlFor="requires_escort">Requires escort</Label>
         </div>

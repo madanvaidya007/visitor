@@ -189,7 +189,7 @@ export function GuardQRScanner({ zoneId, entryPointId }: GuardQRScannerProps) {
               <CardTitle className="text-lg">{zone.name}</CardTitle>
             </div>
             <CardDescription>
-              {zone.description} • Security Level: {zone.security_level}
+              {zone.description} • Security Level: {zone.access_level}
             </CardDescription>
           </CardHeader>
         </Card>

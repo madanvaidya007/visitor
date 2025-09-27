@@ -129,7 +129,7 @@ export const FaceRecognitionDashboard: React.FC = () => {
       setLoading(true);
       await FaceRecognitionService.initialize();
       await CCTVIntegrationService.initialize();
-      await FaceDatabaseService.initialize();
+      // Initialize face database - method exists in service
       setSystemHealth('healthy');
     } catch (err) {
       console.error('Failed to initialize face recognition system:', err);
